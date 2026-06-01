@@ -60,7 +60,7 @@ public class LeaderElection implements Watcher {
         List<String> children = this.zooKeeper.getChildren(ELECTION_NAMESPACE, false);
         Collections.sort(children);
         String smallestChild = children.get(0);
-        if (currentZNodeName.equals(this.currentZNodeName)) {
+        if (smallestChild.equals(this.currentZNodeName)) {
             System.out.println("I am the leader");
             return;
         }
