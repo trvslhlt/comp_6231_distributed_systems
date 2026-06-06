@@ -11,7 +11,7 @@ A distributed leader election implementation using Apache ZooKeeper.
 ## Build and Run
 
 ```bash
-mvn compile exec:java
+mvn clean compile exec:java
 ```
 
 ## Package
