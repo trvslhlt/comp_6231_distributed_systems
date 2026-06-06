@@ -10,6 +10,7 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.data.Stat;
 
 
 public class LeaderElection implements Watcher {
@@ -17,6 +18,7 @@ public class LeaderElection implements Watcher {
     private static final String ZOOKEEPER_ADDRESS = "localhost:2181";
     private static final int SESSION_TIMEOUT = 3000; // time before considering client dead
     private static final String ELECTION_NAMESPACE = "/election";
+    private static final String TARGET_ZNODE = "/target_znode";
     private ZooKeeper zooKeeper;
     private String currentZNodeName;
 
@@ -69,6 +71,20 @@ public class LeaderElection implements Watcher {
         logger.info("I am not the leader, " + smallestChild + " is the leader");
     }
 
+    public void watchTargetZNode() throws KeeperException, InterruptedException {
+        logger.debug("watch target znode");
+        Stat stat = this.zooKeeper.exists(TARGET_ZNODE, this);
+        logger.info("Watching " + TARGET_ZNODE + ", stat: " + stat);
+        if (stat == null) {
+            return;
+        }
+
+        byte[] data = this.zooKeeper.getData(TARGET_ZNODE, this, stat);
+        List<String> children = this.zooKeeper.getChildren(TARGET_ZNODE, this);
+
+        logger.info("Data: " + new String(data) + ", children: " + children);
+    }
+
     // Watcher
     @Override
     public void process(WatchedEvent event) {
@@ -84,8 +100,28 @@ public class LeaderElection implements Watcher {
                     }
                 }
                 break;
+            case NodeDeleted:
+                logger.info(TARGET_ZNODE + " was deleted");
+                break;
+            case NodeCreated:
+                logger.info(TARGET_ZNODE + " was created");
+                break;
+            case NodeDataChanged:
+                logger.info(TARGET_ZNODE + " data changed");
+                break;
+            case NodeChildrenChanged:
+                logger.info(TARGET_ZNODE + " children changed");
+                break;
             default:
                 logger.warn("unhandled event. type: " + event.getType());
+        }
+
+        try {
+            this.watchTargetZNode();
+        } catch (KeeperException e) {
+
+        } catch (InterruptedException e) {
+
         }
     }
 }
