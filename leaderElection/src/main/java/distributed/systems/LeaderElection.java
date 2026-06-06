@@ -63,14 +63,25 @@ public class LeaderElection implements Watcher {
     }
 
     public void electLeader() throws KeeperException, InterruptedException {
-        List<String> children = this.zooKeeper.getChildren(ELECTION_NAMESPACE, false);
-        Collections.sort(children);
-        String smallestChild = children.get(0);
-        if (smallestChild.equals(this.currentZNodeName)) {
-            logger.info("I am the leader");
-            return;
+        String predecessorZNodeName = null;
+        Stat predecessorStat = null;
+
+        while (predecessorStat == null) {
+            List<String> children = this.zooKeeper.getChildren(ELECTION_NAMESPACE, false);
+            Collections.sort(children);
+            String smallestChild = children.get(0);
+            if (smallestChild.equals(this.currentZNodeName)) {
+                logger.info("I am the leader");
+                return;
+            }
+
+            logger.info("I am not the leader, " + smallestChild + " is the leader");
+            int predecessorIndex = Collections.binarySearch(children, currentZNodeName) - 1;
+            predecessorZNodeName = children.get(predecessorIndex);
+            predecessorStat = this.zooKeeper.exists(ELECTION_NAMESPACE + "/" + predecessorZNodeName, this);
         }
-        logger.info("I am not the leader, " + smallestChild + " is the leader");
+
+        logger.info("Watching znode: " + predecessorZNodeName);
     }
 
     public void watchTargetZNode() throws KeeperException, InterruptedException {
@@ -124,6 +135,11 @@ public class LeaderElection implements Watcher {
                 break;
             case NodeDeleted:
                 logger.info(TARGET_ZNODE + " was deleted");
+                try {
+                    this.electLeader();
+                } catch (InterruptedException e) {
+                } catch (KeeperException e) {
+                }
                 break;
             case NodeCreated:
                 logger.info(TARGET_ZNODE + " was created");
@@ -134,9 +150,7 @@ public class LeaderElection implements Watcher {
                     byte[] newData = this.zooKeeper.getData(TARGET_ZNODE, false, null);
                     this.performActionsBasedOnData(TARGET_ZNODE, newData);
                 } catch (KeeperException e) {
-                    logger.error("failure to get data");
                 } catch (InterruptedException e) {
-                    logger.error("interrupted exception");
                 }
                 break;
             case NodeChildrenChanged:
