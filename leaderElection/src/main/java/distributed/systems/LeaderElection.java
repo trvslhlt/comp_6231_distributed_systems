@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.events.Event;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -80,10 +81,30 @@ public class LeaderElection implements Watcher {
             return;
         }
 
-        byte[] data = this.zooKeeper.getData(TARGET_ZNODE, this, stat);
         List<String> children = this.zooKeeper.getChildren(TARGET_ZNODE, this);
 
+        byte[] data = this.zooKeeper.getData(TARGET_ZNODE, this, stat);
+
+        // inline Watcher definition example
+        // LeaderElection that = this;
+        // this.zooKeeper.getData(TARGET_ZNODE, new Watcher() {
+        //     public void process(WatchedEvent event) {
+        //         if (event.getType() == Watcher.Event.EventType.NodeDataChanged) {
+        //             try {
+        //                 byte[] newData = zooKeeper.getData(TARGET_ZNODE, false, null);
+        //                 that.performActionsBasedOnData(TARGET_ZNODE, newData);
+        //             } catch (KeeperException | InterruptedException e) {
+        //                 logger.error("Error getting data", e);
+        //             }
+        //         }
+        //     }
+        // }, null);
+
         logger.info("Data: " + new String(data) + ", children: " + children);
+    }
+
+    public void performActionsBasedOnData(String zNode, byte[] data) {
+        logger.info("performActionsBasedOnData: " + new String(data));
     }
 
     // Watcher
@@ -109,6 +130,14 @@ public class LeaderElection implements Watcher {
                 break;
             case NodeDataChanged:
                 logger.info(TARGET_ZNODE + " data changed");
+                try {
+                    byte[] newData = this.zooKeeper.getData(TARGET_ZNODE, false, null);
+                    this.performActionsBasedOnData(TARGET_ZNODE, newData);
+                } catch (KeeperException e) {
+                    logger.error("failure to get data");
+                } catch (InterruptedException e) {
+                    logger.error("interrupted exception");
+                }
                 break;
             case NodeChildrenChanged:
                 logger.info(TARGET_ZNODE + " children changed");
