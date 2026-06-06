@@ -3,7 +3,8 @@ package distributed.systems;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -14,7 +15,7 @@ import org.apache.zookeeper.data.Stat;
 
 
 public class LeaderElection implements Watcher {
-    private static final Logger logger = Logger.getLogger(LeaderElection.class);
+    private static final Logger logger = LoggerFactory.getLogger(LeaderElection.class);
     private static final String ZOOKEEPER_ADDRESS = "localhost:2181";
     private static final int SESSION_TIMEOUT = 3000; // time before considering client dead
     private static final String ELECTION_NAMESPACE = "/election";
@@ -88,7 +89,7 @@ public class LeaderElection implements Watcher {
     // Watcher
     @Override
     public void process(WatchedEvent event) {
-        logger.debug(event);
+        logger.debug(event.toString());
         switch(event.getType()) {
             case None:
                 if (event.getState() == Event.KeeperState.SyncConnected) {
