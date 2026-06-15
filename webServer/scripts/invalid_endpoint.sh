@@ -1,0 +1,1 @@
+curl --request GET -v localhost:8080/invalid-endpoint

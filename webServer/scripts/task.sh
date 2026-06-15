@@ -1,0 +1,1 @@
+curl --request POST -v --data '50,100' localhost:8080/task

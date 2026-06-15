@@ -69,13 +69,13 @@ mvn clean package
 ## Run Packaged JAR
 
 ```bash
-java -jar target/leader.election-1.0-SNAPSHOT-jar-with-dependencies.jar
+java -jar target/service-registry-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
 To specify a port (default: `8080`):
 
 ```bash
-java -jar target/leader.election-1.0-SNAPSHOT-jar-with-dependencies.jar <port>
+java -jar target/service-registry-1.0-SNAPSHOT-jar-with-dependencies.jar <port>
 ```
 
 
