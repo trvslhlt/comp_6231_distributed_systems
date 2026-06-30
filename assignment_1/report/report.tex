@@ -1,0 +1,247 @@
+\documentclass[12pt]{article}
+
+% ---------- Packages ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue,
+}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{setspace}
+\graphicspath{{figures/}}
+
+% ---------- Title Information ----------
+\title{Architectural Design and Trade-Off Analysis of a Real-Time Ride-Sharing Platform Backend}
+\author{Travis Holt}
+\date{\today}
+
+% Fill in course details
+\newcommand{\courseName}{COMP 6231: Distributed Systems}
+\newcommand{\assignmentName}{Assignment 1}
+\newcommand{\instructorName}{}
+\newcommand{\studentId}{}
+
+\begin{document}
+
+% ---------- Title Page ----------
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\LARGE \textbf{\courseName}}\\[0.5cm]
+    {\Large \assignmentName}\\[1.5cm]
+    {\Huge \textbf{Architectural Design and Trade-Off Analysis of a Real-Time Ride-Sharing Platform Backend}}\\[2cm]
+
+    \vfill
+
+    {\large
+    \begin{tabular}{ll}
+        Author: & Travis Holt \\
+        Student ID: & 40351596 \\
+        Instructor: & Dr. Reza Mirsalari \\
+        Date: & \today \\
+    \end{tabular}
+    }
+
+    \vspace*{1cm}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ---------- Introduction ----------
+\section{Introduction}
+\label{sec:introduction}
+
+% TODO: Motivate the problem -- why distributed systems principles are required
+% for a real-time ride-sharing platform, and what this report covers.
+
+\subsection{Problem Statement}
+"...architect the backend infrastructure of a real-time ride-sharing platform similar to Uber or Lyft, using principles
+from distributed systems. Your task is to analyze and design a distributed backend
+system that supports high availability, low latency, and data consistency under high
+concurrency."
+
+You must integrate and analyze the following core architectural components
+\begin{itemize}
+    \item Database Sharding (Hash-based, Range-based, or Consistent Hashing)
+    \item Replication and Consistency Models (Eventual, Strong, Quorum-based)
+    \item Load Balancing (Layer 4 vs. Layer 7)
+\end{itemize}
+
+\subsection{System Requirements}
+
+\subsubsection{Functional Requirements}
+\begin{itemize}
+    \item Drivers broadcast live location and availability.
+    \item Riders send trip requests that are matched with nearby drivers.
+    \item The system supports live matching, route calculation, and payment processing.
+    \item Data includes user accounts, trip histories, real-time GPS data, and pricing rules.
+\end{itemize}
+
+\subsubsection{Non-Functional Requirements}
+\begin{itemize}
+    \item Global scale support (multi-region architecture assumed).
+    \item Sub-200ms latency for ride-matching response in 90\% of requests.
+    \item High read/write throughput for hotspots (e.g., downtown during peak hours).
+\end{itemize}
+
+\subsection{Report Organization}
+The proposed system is introduced graphically with a series of architecture diagrams with increasing granularity. Design considerations, trade-offs, and decisions are discussed subsequently. The report concludes with technology recommendations for implementing this system.
+
+\newpage
+
+% ---------- System Architecture Overview ----------
+\section{System Architecture Overview}
+\label{sec:architecture-overview}
+
+% TODO: High-level architecture diagram and description of major components
+% (e.g., API gateway, matching service, location service, trip service,
+% payment service, data stores).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{architecture_overview.png}
+    \caption{High-level system architecture.}
+    \label{fig:architecture-overview}
+\end{figure}
+
+At the highest level the system components can be categorized into three groups: clients, global services, and regional services. The personas of the clients may be either passengers or drivers and their interfaces may be native mobile applications or web browsers. The global services are responsible for authentication, authorization, account management, and regional service routing. The bulk of core functionality is provided by the regional services, of which there can be an arbitrary number of instances.
+
+When clients begin interacting with the system they query the global service load balancer (GSLB) for determine the appropriate regional service endpoint with which to communicate. The GSLB's DNS resolution is governed by a geolocation routing policy that maps a client's current IP address to a regional service IP address. This policy may also consider availability, capacity, and load.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{regional_app_service_stack.png}
+    \caption{Regional application service stack architecture.}
+    \label{fig:regional-app-service-stack}
+\end{figure}
+
+Once a client has been routed to a regional service endpoint a layer 4 load balancer (L4LB) proxies their requests to an availability zone (AZ). The purpose of the L4LB is to distribute load across AZs and adapt to outages in AZs. At any given time there is a single active L4LB in a region, backed by several passive isntances that can take over should there the active instance fail.Next, a layer 7 load balancer (L7LB) proxies requests to an appropriate application API based on the request path and headers. The L7LB is also responsible for TLS termination and rate limiting. This allows components deeper in the stack to focus on core functionality rather than security and load management.
+
+Each application API has multiple instances running, with the specific number scaling with the current or anticipated load. The API services are stateless which allows them to be regarded as ephemeral. The diagram depicts two specific APIs for illustration purposes, but in reality there will likely be many more along with additional supporting microservices. 
+Each region also has an inter-zone distributed cache for rapidly changing non-durable data such as GPS locations of users. Durable data is managed by regional data stacks.
+Finally, each region has a coordination service (CS) that spans AZs. The CS is responsible for leader election in the case of the L4LBs. It also provides service registration and discovery which enables the L7LB to route to a flexible pool of API instances. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{regional_data_stack.png}
+    \caption{Regional data stack architecture.}
+    \label{fig:regional-data-stack}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{global_data_stack.png}
+    \caption{Global data stack architecture.}
+    \label{fig:global-data-stack}
+\end{figure}
+
+% ---------- Database Sharding ----------
+\section{Database Sharding}
+\label{sec:sharding}
+
+% TODO: Discuss and compare hash-based, range-based, and consistent hashing
+% sharding strategies as they apply to the ride-sharing data model
+% (users, trips, GPS data, pricing rules).
+
+\subsection{Sharding Strategy Comparison}
+% TODO
+
+\subsection{Chosen Approach and Justification}
+% TODO
+
+\newpage
+
+% ---------- Replication and Consistency ----------
+\section{Replication and Consistency Models}
+\label{sec:replication-consistency}
+
+% TODO: Discuss eventual consistency, strong consistency, and quorum-based
+% approaches, and where each is appropriate within the system
+% (e.g., strong consistency for payments, eventual consistency for GPS pings).
+
+\subsection{Consistency Model Comparison}
+% TODO
+
+\subsection{Chosen Approach and Justification}
+% TODO
+
+\newpage
+
+% ---------- Load Balancing ----------
+\section{Load Balancing}
+\label{sec:load-balancing}
+
+% TODO: Discuss Layer 4 vs. Layer 7 load balancing trade-offs in the
+% context of the ride-matching and routing services.
+
+\subsection{Layer 4 vs. Layer 7 Comparison}
+% TODO
+
+\subsection{Chosen Approach and Justification}
+% TODO
+
+\newpage
+
+% ---------- Trade-Off Analysis ----------
+\section{Trade-Off Analysis}
+\label{sec:tradeoffs}
+
+% TODO: Synthesize trade-offs across sharding, replication/consistency, and
+% load balancing decisions relative to the stated non-functional requirements
+% (latency, throughput, availability, consistency).
+
+\begin{table}[H]
+    \centering
+    \caption{Summary of architectural trade-offs.}
+    \label{tab:tradeoffs}
+    \begin{tabular}{@{}lll@{}}
+        \toprule
+        \textbf{Component} & \textbf{Decision} & \textbf{Key Trade-Off} \\
+        \midrule
+        Sharding & & \\
+        Replication/Consistency & & \\
+        Load Balancing & & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\newpage
+
+% ---------- Evaluation ----------
+\section{Evaluation}
+
+CAP
+
+Capacity
+
+Latency
+
+\section{Technology Recommendations}
+\label{sec:technology-recommendations}
+
+Cloud provider: AWS, GCP, Azure
+
+Provisioning: Kubernetes, Docker, Terraform, Ansible
+
+Components: Kafka, Redis, PostgreSQL, MongoDB, Nginx, Envoy
+
+\newpage
+
+% ---------- References ----------
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
