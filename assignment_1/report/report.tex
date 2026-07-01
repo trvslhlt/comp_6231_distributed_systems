@@ -8,6 +8,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{array}
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{hyperref}
@@ -17,6 +18,7 @@
     citecolor=black,
     urlcolor=blue,
 }
+\usepackage{longtable}
 \usepackage{caption}
 \usepackage{float}
 \usepackage{setspace}
@@ -30,8 +32,8 @@
 % Fill in course details
 \newcommand{\courseName}{COMP 6231: Distributed Systems}
 \newcommand{\assignmentName}{Assignment 1}
-\newcommand{\instructorName}{}
-\newcommand{\studentId}{}
+\newcommand{\instructorName}{Dr. Reza Mirsalari}
+\newcommand{\studentId}{40351596}
 
 \begin{document}
 
@@ -48,8 +50,8 @@
     {\large
     \begin{tabular}{ll}
         Author: & Travis Holt \\
-        Student ID: & 40351596 \\
-        Instructor: & Dr. Reza Mirsalari \\
+        Student ID: & \studentId \\
+        Instructor: & \instructorName \\
         Date: & \today \\
     \end{tabular}
     }
@@ -57,15 +59,12 @@
     \vspace*{1cm}
 \end{titlepage}
 
-\tableofcontents
-\newpage
+% \tableofcontents
+% \newpage
 
 % ---------- Introduction ----------
 \section{Introduction}
 \label{sec:introduction}
-
-% TODO: Motivate the problem -- why distributed systems principles are required
-% for a real-time ride-sharing platform, and what this report covers.
 
 \subsection{Problem Statement}
 "...architect the backend infrastructure of a real-time ride-sharing platform similar to Uber or Lyft, using principles
@@ -100,15 +99,10 @@ You must integrate and analyze the following core architectural components
 \subsection{Report Organization}
 The proposed system is introduced graphically with a series of architecture diagrams with increasing granularity. Design considerations, trade-offs, and decisions are discussed subsequently. The report concludes with technology recommendations for implementing this system.
 
-\newpage
 
 % ---------- System Architecture Overview ----------
 \section{System Architecture Overview}
 \label{sec:architecture-overview}
-
-% TODO: High-level architecture diagram and description of major components
-% (e.g., API gateway, matching service, location service, trip service,
-% payment service, data stores).
 
 \begin{figure}[H]
     \centering
@@ -141,6 +135,12 @@ Finally, each region has a coordination service (CS) that spans AZs. The CS is r
     \label{fig:regional-data-stack}
 \end{figure}
 
+Each regional data stack manages a cluster of high volume ride data, partitioned geospatially. We horizonally partition the data so that each regional data stack is independent from the others. Within each regional stack we shard records across primary writer instances in different AZs using a discrete global grid system (e.g. Uber's H3) and consistent hashing. This approach gives us semantically meaningful shard keys that are also well distributed. Each shard ('ALPHA', 'BETA', etc.) is synchronously replicated to instances in other AZs for durability and fault tolerance. We depend on the DB technology to orchestrate this replication.
+
+Applications are insulated from the complexity of the regional and global data stacks by a DB proxy (DBP). The DBP routes queries to the shard based on the hash key and current avaialbility. It also lazily loads records from the global data stack when new clients use the service or existing clients move between regions. 
+
+Each regional data stack has a coordination service similar to those in the regional service stacks. Both the DBP and shard instancesuse use the coordination service to elect leaders. The DPB also relies on the service for service discovery: it needs to immediately know when shard leadership changes.
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{global_data_stack.png}
@@ -148,77 +148,56 @@ Finally, each region has a coordination service (CS) that spans AZs. The CS is r
     \label{fig:global-data-stack}
 \end{figure}
 
+The global data stack is responsible for owning and managing durable data that is not specific to one single region. This data is much smaller in volume and slower changing than the regional ride-based data, but arguably more critical to the system's operator: account information, payment information, and pricing rules for example. The global data stack is based around a single NewSQL cluster. This cluster has a number of replicated data nodes distributed across regions and AZs. This approach allows for quick reads and slow writes, which is fitting for the access pattern expected for this data. 
+
 % ---------- Database Sharding ----------
 \section{Database Sharding}
 \label{sec:sharding}
 
-% TODO: Discuss and compare hash-based, range-based, and consistent hashing
-% sharding strategies as they apply to the ride-sharing data model
-% (users, trips, GPS data, pricing rules).
+\subsection{Sharding Strategies}
 
-\subsection{Sharding Strategy Comparison}
-% TODO
+\subsubsection{Considered}
+\begin{itemize}
+    \item \textbf{Hash-based}: This simple sharding assigns each record to a shard by hashing a key (e.g. user ID) and taking the result modulo the shard count. Writes spread evenly and routing is cheap to compute. However, adding or removing a shard changes the modulus, forcing a reshuffle of existing data.
+    \item \textbf{Range-based}: This sharding assigns contiguous key ranges (e.g. timestamps) to specific shards. Range scans are cheap and the shard boundaries are easy to reason about, but it is susceptible to hotspotting. For example a single popular range, like downtown at rush hour, can lead to a single shard absorbing a disproportionate amount of the load.
+    \item \textbf{Consistent hashing}: This approach places shards and keys on the same hash ring, so adding or removing a shard only remaps the keys next to it on the ring rather than the whole dataset. It can still hotspot, since one shard may still own a disproportionate arc of the ring, but virtual nodes mitigate this by spreading each physical shard's ownership across many smaller arcs.
+\end{itemize}
 
-\subsection{Chosen Approach and Justification}
-% TODO
+\subsubsection{Chosen}
 
-\newpage
+The data in this system is sharded at multiple levels in this system. First, data is partitioned by region. We assume that the number of regions have enough flexibility and scaliing capacity that their count will rarely change. This is akin to range-based sharding as keys, or client IP addresses, should map to the same region. Second, within regional data stacks we shard data by geospatial index (H3) and consistent hashing. This allows the number of shards to scale in response to demand without reshuffling the entire dataset, while also giving us shard keys that are semantically meaningful and well distributed. As long as the granularity of the H3 cells is chosen appropriately, this approach will also avoid hotspotting.
+
 
 % ---------- Replication and Consistency ----------
 \section{Replication and Consistency Models}
 \label{sec:replication-consistency}
 
-% TODO: Discuss eventual consistency, strong consistency, and quorum-based
-% approaches, and where each is appropriate within the system
-% (e.g., strong consistency for payments, eventual consistency for GPS pings).
-
 \subsection{Consistency Model Comparison}
-% TODO
 
-\subsection{Chosen Approach and Justification}
-% TODO
+\subsubsection{Considered}
+\begin{itemize}
+    \item \textbf{Strong consistency}: All reads reflect the most recent write. Strong correctness guarantees and high latency
+    \item \textbf{Eventual consistency}: Writes are acknowledged quickly and replicas converge over time. Reads may return stale data
+    \item \textbf{Quorum-based consistency}: A write (or read) is acknowledged once a majority of replicas confirm it. A tunable hybrid of the preceding approaches.
+\end{itemize}
 
-\newpage
+\subsubsection{Chosen}
+
+Each of these consistency models are represented in this system. We have strong consistency guarantees for ride matching data, as we want riders and drivers to have reliable experiences when being matched and paying for services. Low latency is important for that use case as well. We can accept the trade-off slightly slower writes because all replication happens in the the same region.
+The distributed GPS cache is eventually consistent, which is acceptable for data that is written frequently, read frequently, and does not involve accounting for real world resources: vehicles dispatched, rides cancelled, payment receipts, etc. Stale reads will not have a meaningfully negative impact on user experience. In return for the reduced consistency guarantee we get lower latency and very high throughput. This is ideal for the data that will be written orders of magnitude more often than other data types in the system.
+Finally, we distinguish between two categories of global data. Security-critical user account fields — credentials, account status, payment methods, and driver approval status — require strong consistency globally. A deactivated driver who can still accept rides because a regional cache has not caught up is a safety issue, not a UX problem. These fields must always be read through to the global data stack, bypassing the regional DBP cache entirely. Profile data (display name, preferences, photo) can tolerate quorum-based consistency; stale reads have no meaningful consequence, and the latency cost of strong global consistency on every profile read is not justified.
+
 
 % ---------- Load Balancing ----------
 \section{Load Balancing}
 \label{sec:load-balancing}
 
-% TODO: Discuss Layer 4 vs. Layer 7 load balancing trade-offs in the
-% context of the ride-matching and routing services.
+The system contains load balancers performing 3 distinct functions. The GSLB acts as a DNS resolver. Its only purpose is to direct clients to the correct region. It reforms this task by mapping client IP addresses to fixed virtual IP (VIP) addresses used by L4LBs in each region. When a L4LB wants to move from passive to active it assumes the VIP.
 
-\subsection{Layer 4 vs. Layer 7 Comparison}
-% TODO
+L4LBs are the gateways for all inbound client traffic to each region. They act as true load balancers, distributing load across available downstream resources as efficiently as possible. They do not process requests or event investigate payloads. They operate at the level of the TCP protocol so the CPU usage is kept to a minimum.
 
-\subsection{Chosen Approach and Justification}
-% TODO
+Like the L4LBs, the L7LBs proxy requests towards application services, but L7LBs perform more middleware actions on the requests. Working at the HTTP/application level, these load balancers have access to request paths, methods, and headers. They use this information to filter, modify, and route requests to different types of APIs.
 
-\newpage
-
-% ---------- Trade-Off Analysis ----------
-\section{Trade-Off Analysis}
-\label{sec:tradeoffs}
-
-% TODO: Synthesize trade-offs across sharding, replication/consistency, and
-% load balancing decisions relative to the stated non-functional requirements
-% (latency, throughput, availability, consistency).
-
-\begin{table}[H]
-    \centering
-    \caption{Summary of architectural trade-offs.}
-    \label{tab:tradeoffs}
-    \begin{tabular}{@{}lll@{}}
-        \toprule
-        \textbf{Component} & \textbf{Decision} & \textbf{Key Trade-Off} \\
-        \midrule
-        Sharding & & \\
-        Replication/Consistency & & \\
-        Load Balancing & & \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-\newpage
 
 % ---------- Evaluation ----------
 \section{Evaluation}
@@ -232,13 +211,74 @@ Latency
 \section{Technology Recommendations}
 \label{sec:technology-recommendations}
 
-Cloud provider: AWS, GCP, Azure
+Thus far the system has been described in terms hardware and software agnostic to the extent possible. The system as is can be implemented with a number of technologies. In the process of selecting speific environments and frameworks, some components may split into multiple, while others may be combined. What follows is an exercise that illustrates how this system might be implemented.
 
-Provisioning: Kubernetes, Docker, Terraform, Ansible
+We have chosen to use open-source technologies where possible, to avoid vendor lock-in and to allow for greater flexibility in deployment. The following table summarizes the software recommendations for each system component, along with rationale for each.
 
-Components: Kafka, Redis, PostgreSQL, MongoDB, Nginx, Envoy
+\subsection{Infrastructure}
+We will use a cloud provider for the underlying physical infrastructure. This allows us to get up and running quickly with the ability to scale along the way. The specific provider is not important as no provider specific services will be used. (In reality, this may not be the best decision. This was done to allow for learning about open source technologies.)
 
-\newpage
+The compute and networking resources needed to run the system will be provisioned with Terraform. After provisioning, the system will be deployed and configured with Ansible. These two tools allow us to define the system architecture with code instead of manually standing up the infrastructure: it's fast, readable, and repeatable.
+
+The app services (e.g. APIs) will require more active management than Ansible is intended to provide. There we will containerize the services and mange the containers with Kubernetes. Kubernetes can be configured to automatically scale with load and we also get metrics and logging out of the box.
+
+\subsection{Software}
+
+\small
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{8.8cm}@{}}
+    \caption{Technology recommendations by system component.}
+    \label{tab:tech-recommendations}\\
+    \toprule
+    \textbf{Component} & \textbf{Recommendation} & \textbf{Rationale}\\
+    \midrule
+    \endfirsthead
+    \toprule
+    \textbf{Component} & \textbf{Recommendation} & \textbf{Rationale}\\
+    \midrule
+    \endhead
+    \bottomrule
+    \endlastfoot
+    GSLB
+        & PowerDNS \cite{powerdns}
+        & Authoritative DNS server with a Lua-based routing API and REST management interface. Supports geolocation-based resolution and health-check-driven failover. \\
+    \addlinespace
+    L4LB
+        & HAProxy \cite{haproxy}
+        & High-throughput TCP proxy with active/passive failover support. Lightweight enough to not add meaningful latency on the critical path. \\
+    \addlinespace
+    L7LB
+        & Envoy \cite{envoy}
+        & HTTP routing by path and header, TLS termination, rate limiting, and built-in observability. \\
+    \addlinespace
+    CS
+        & etcd
+        & Strong consistency via Raft consensus, purpose-built for leader election and service discovery, and well-proven at scale (it powers Kubernetes). \\
+    \addlinespace
+    DBP
+        & Custom service
+        & The required routing logic (consistent hashing over H3 keys, shard discovery via the coordination service, lazy cross-region loading) is application-specific and not handled by off-the-shelf proxies. \\
+    \addlinespace
+    GPS Data
+        & Redis
+        & Sub-millisecond reads and writes, native geospatial commands (\texttt{GEOADD}, \texttt{GEORADIUS}), and per-key TTL for automatic expiry of stale locations. \\
+    \addlinespace
+    Pricing Rules
+        & Redis
+        & Small, read-heavy dataset that fits entirely in memory. Replication ensures regional availability and TTL-based invalidation handles infrequent updates. \\
+    \addlinespace
+    Active Trip Data
+        & Apache Cassandra
+        & High write throughput, tunable consistency (supports the quorum model chosen for trip records), and horizontal scaling across AZs without a single point of coordination. \\
+    \addlinespace
+    User Accounts
+        & CockroachDB \cite{cockroachdb}
+        & Distributed NewSQL database with serializable isolation across nodes, satisfying the strong consistency requirement for security-critical fields. Geo-partitioning anchors each user's record to their home region for fast local reads, while still coordinating writes globally when security-critical fields change. \\
+    \addlinespace
+    Trip History
+        & PostgreSQL
+        & Declarative time-based range partitioning maps directly to the range-sharding strategy chosen for this data type, and mature SQL support covers the analytical and auditing queries this data is accessed for. \\
+\end{longtable}
+\normalsize
 
 % ---------- References ----------
 \bibliographystyle{plain}

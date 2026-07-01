@@ -1,0 +1,23 @@
+\begin{thebibliography}{1}
+
+\bibitem{cockroachdb}
+{CockroachDB} -- the distributed {SQL} database.
+\newblock \url{https://www.cockroachlabs.com/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{envoy}
+{Envoy} -- cloud-native high-performance edge and service proxy.
+\newblock \url{https://www.envoyproxy.io/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{haproxy}
+{HAProxy} -- the reliable, high performance {TCP/HTTP} load balancer.
+\newblock \url{https://www.haproxy.org/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{powerdns}
+{PowerDNS} -- the authoritative {DNS} server.
+\newblock \url{https://www.powerdns.com/}.
+\newblock Accessed: 2026-06-30.
+
+\end{thebibliography}
