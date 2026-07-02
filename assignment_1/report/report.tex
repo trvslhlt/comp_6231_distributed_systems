@@ -130,16 +130,16 @@ Finally, each region has a coordination service (CS) that spans AZs. The CS is r
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\textwidth]{regional_data_stack.png}
-    \caption{Regional data stack architecture.}
-    \label{fig:regional-data-stack}
+    \includegraphics[width=0.9\textwidth]{ride_request.png}
+    \caption{Ride request processing flow.}
+    \label{fig:ride-request}
 \end{figure}
 
-Each regional data stack manages a cluster of high volume ride data, partitioned geospatially. We horizonally partition the data so that each regional data stack is independent from the others. Within each regional stack we shard records across primary writer instances in different AZs using a discrete global grid system (e.g. Uber's H3) and consistent hashing. This approach gives us semantically meaningful shard keys that are also well distributed. Each shard ('ALPHA', 'BETA', etc.) is synchronously replicated to instances in other AZs for durability and fault tolerance. We depend on the DB technology to orchestrate this replication.
+Each regional data stack manages a distributed wide-column store cluster of high volume active ride data. Each cluster spans the AZs of its region, with peer nodes distributed across them. We use the H3 geospatial cell index as the partition key. The wide-column store distributes rows across nodes via consistent hashing with virtual nodes, which balances load evenly and minimizes data movement when the cluster is resized. Unlike a leader-follower database, the cluster is masterless: any node can accept reads and writes. Data is replicated to a configurable number of nodes per AZ for durability. Consistency is enforced at query time using a local quorum policy, requiring a majority of replicas within the region to acknowledge an operation before it is considered successful.
 
-Applications are insulated from the complexity of the regional and global data stacks by a DB proxy (DBP). The DBP routes queries to the shard based on the hash key and current avaialbility. It also lazily loads records from the global data stack when new clients use the service or existing clients move between regions. 
+Applications are insulated from the complexity of the regional and global data stacks by a DB proxy (DBP). The DBP embeds a database driver that handles token-aware routing to the correct cluster node based on the partition key. The DBP's primary responsibilities are managing the connection pool and lazily loading records from the global data stack when new clients use the service or existing clients move between regions.
 
-Each regional data stack has a coordination service similar to those in the regional service stacks. Both the DBP and shard instancesuse use the coordination service to elect leaders. The DPB also relies on the service for service discovery: it needs to immediately know when shard leadership changes.
+Each regional data stack has a coordination service used by the DBP for service discovery. Since the wide-column store cluster is masterless and uses gossip for internal node coordination, the CS is not involved in data node management. The DBP uses the CS to track which cluster nodes are healthy and should receive connections.
 
 \begin{figure}[H]
     \centering
@@ -165,7 +165,7 @@ The global data stack is responsible for owning and managing durable data that i
 
 \subsubsection{Chosen}
 
-The data in this system is sharded at multiple levels in this system. First, data is partitioned by region. We assume that the number of regions have enough flexibility and scaliing capacity that their count will rarely change. This is akin to range-based sharding as keys, or client IP addresses, should map to the same region. Second, within regional data stacks we shard data by geospatial index (H3) and consistent hashing. This allows the number of shards to scale in response to demand without reshuffling the entire dataset, while also giving us shard keys that are semantically meaningful and well distributed. As long as the granularity of the H3 cells is chosen appropriately, this approach will also avoid hotspotting.
+The data in this system is sharded at multiple levels in this system. First, data is partitioned by region. We assume that regions have enough flexibility and scaliing capacity that their count will rarely change. This is a form of range-based sharding. Keys, or client IP addresses, should map to regions consistently. Second, within regional data stacks we shard data by geospatial index (e.g. H3) and consistent hashing. This allows the number of shards to scale in response to demand without reshuffling the entire dataset, while also giving us shard keys that are semantically meaningful and well distributed. As long as the granularity of the H3 cells is chosen appropriately, this approach will also avoid hotspotting.
 
 
 % ---------- Replication and Consistency ----------
@@ -183,7 +183,7 @@ The data in this system is sharded at multiple levels in this system. First, dat
 
 \subsubsection{Chosen}
 
-Each of these consistency models are represented in this system. We have strong consistency guarantees for ride matching data, as we want riders and drivers to have reliable experiences when being matched and paying for services. Low latency is important for that use case as well. We can accept the trade-off slightly slower writes because all replication happens in the the same region.
+Each of these consistency models are represented in this system. We use quorum-based consistency for active trip data. A majority of replicas within the region must acknowledge a read or write before it is considered successful, giving us strong correctness guarantees without requiring cross-region coordination. We can accept the modest write latency cost because all replicas involved are within the same region.
 The distributed GPS cache is eventually consistent, which is acceptable for data that is written frequently, read frequently, and does not involve accounting for real world resources: vehicles dispatched, rides cancelled, payment receipts, etc. Stale reads will not have a meaningfully negative impact on user experience. In return for the reduced consistency guarantee we get lower latency and very high throughput. This is ideal for the data that will be written orders of magnitude more often than other data types in the system.
 Finally, we distinguish between two categories of global data. Security-critical user account fields — credentials, account status, payment methods, and driver approval status — require strong consistency globally. A deactivated driver who can still accept rides because a regional cache has not caught up is a safety issue, not a UX problem. These fields must always be read through to the global data stack, bypassing the regional DBP cache entirely. Profile data (display name, preferences, photo) can tolerate quorum-based consistency; stale reads have no meaningful consequence, and the latency cost of strong global consistency on every profile read is not justified.
 
@@ -202,11 +202,79 @@ Like the L4LBs, the L7LBs proxy requests towards application services, but L7LBs
 % ---------- Evaluation ----------
 \section{Evaluation}
 
-CAP
+\subsection{Capacity and Latency}
 
-Capacity
+\small
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{4.5cm}@{}}
+    \caption{Component throughput and latency BOTE estimates based on a survey of candidate implementations. Throughput values are given for a single instance of each component. Latency values are medians.}
+    \label{tab:capacity}\\
+    \toprule
+    \textbf{Component} & \textbf{Technology} & \textbf{Throughput} & \textbf{Latency} & \textbf{Scaling}\\
+    \midrule
+    \endfirsthead
+    \toprule
+    \textbf{Component} & \textbf{Technology} & \textbf{Throughput} & \textbf{Latency} & \textbf{Scaling}\\
+    \midrule
+    \endhead
+    \bottomrule
+    \endlastfoot
+    GSLB
+        & DNS load balancer
+        & $\sim$500K queries/s
+        & $<$1ms
+        & Horizontal with virtual IP \\
+    \addlinespace
+    L4LB
+        & L4 load balancer
+        & $\sim$200K connections/s
+        & $<$1ms
+        & Vertical. Horizontal with AZs \\
+    \addlinespace
+    L7LB
+        & L7 load balancer
+        & $\sim$100K req/s
+        & 5ms
+        & Vertical. Horizontal with AZs \\
+    \addlinespace
+    CS
+        & Distributed coordination service
+        & $\sim$50K ops/s \textit{(cluster)}
+        & 10ms
+        & Fixed (not directly impacted by load) \\
+    \addlinespace
+    DBP
+        & Custom
+        & $\sim$1M req/s
+        & $<$1ms
+        & Horizontal \\
+    \addlinespace
+    GPS Data Cache
+        & Distributed key-value store
+        & $\sim$1M ops/s
+        & $<$1ms
+        & Horizontal \\
+    \addlinespace
+    Active Trip Data
+        & Distributed wide-column store
+        & $\sim$100K writes/s
+        & 5ms
+        & Horizontal \\
+    \addlinespace
+    User Accounts
+        & NewSQL database
+        & $\sim$50K TPS
+        & 100ms
+        & Horizontal \\
+    \addlinespace
+    Trip History
+        & Relational database
+        & $\sim$50K reads/s
+        & 10ms
+        & Vertical for primary/write. Horizontally for reads \\
+\end{longtable}
+\normalsize
 
-Latency
+\subsection{CAP Theorem}
 
 \section{Technology Recommendations}
 \label{sec:technology-recommendations}
@@ -220,13 +288,13 @@ We will use a cloud provider for the underlying physical infrastructure. This al
 
 The compute and networking resources needed to run the system will be provisioned with Terraform. After provisioning, the system will be deployed and configured with Ansible. These two tools allow us to define the system architecture with code instead of manually standing up the infrastructure: it's fast, readable, and repeatable.
 
-The app services (e.g. APIs) will require more active management than Ansible is intended to provide. There we will containerize the services and mange the containers with Kubernetes. Kubernetes can be configured to automatically scale with load and we also get metrics and logging out of the box.
+The app services (e.g. APIs) will require more active management than Ansible is intended to provide. There we will containerize the services and mange the containers with Kubernetes \cite{kubernetes}. Kubernetes can be configured to automatically scale with load and we also get metrics and logging out of the box.
 
 \subsection{Software}
 
 \small
 \begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{8.8cm}@{}}
-    \caption{Technology recommendations by system component.}
+    \caption{Software recommendations by system component.}
     \label{tab:tech-recommendations}\\
     \toprule
     \textbf{Component} & \textbf{Recommendation} & \textbf{Rationale}\\
@@ -251,7 +319,7 @@ The app services (e.g. APIs) will require more active management than Ansible is
         & HTTP routing by path and header, TLS termination, rate limiting, and built-in observability. \\
     \addlinespace
     CS
-        & etcd
+        & etcd \cite{etcd}
         & Strong consistency via Raft consensus, purpose-built for leader election and service discovery, and well-proven at scale (it powers Kubernetes). \\
     \addlinespace
     DBP
@@ -267,7 +335,7 @@ The app services (e.g. APIs) will require more active management than Ansible is
         & Small, read-heavy dataset that fits entirely in memory. Replication ensures regional availability and TTL-based invalidation handles infrequent updates. \\
     \addlinespace
     Active Trip Data
-        & Apache Cassandra
+        & Apache Cassandra \cite{apachecassandra}
         & High write throughput, tunable consistency (supports the quorum model chosen for trip records), and horizontal scaling across AZs without a single point of coordination. \\
     \addlinespace
     User Accounts
@@ -275,7 +343,7 @@ The app services (e.g. APIs) will require more active management than Ansible is
         & Distributed NewSQL database with serializable isolation across nodes, satisfying the strong consistency requirement for security-critical fields. Geo-partitioning anchors each user's record to their home region for fast local reads, while still coordinating writes globally when security-critical fields change. \\
     \addlinespace
     Trip History
-        & PostgreSQL
+        & PostgreSQL \cite{postgresql}
         & Declarative time-based range partitioning maps directly to the range-sharding strategy chosen for this data type, and mature SQL support covers the analytical and auditing queries this data is accessed for. \\
 \end{longtable}
 \normalsize

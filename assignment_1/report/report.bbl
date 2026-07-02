@@ -1,5 +1,10 @@
 \begin{thebibliography}{1}
 
+\bibitem{apachecassandra}
+{Apache Cassandra} -- the open source distributed database.
+\newblock \url{https://cassandra.apache.org/}.
+\newblock Accessed: 2026-06-30.
+
 \bibitem{cockroachdb}
 {CockroachDB} -- the distributed {SQL} database.
 \newblock \url{https://www.cockroachlabs.com/}.
@@ -10,9 +15,24 @@
 \newblock \url{https://www.envoyproxy.io/}.
 \newblock Accessed: 2026-06-30.
 
+\bibitem{etcd}
+{etcd} -- a distributed, reliable key-value store for the most critical data of a distributed system.
+\newblock \url{https://etcd.io/}.
+\newblock Accessed: 2026-06-30.
+
 \bibitem{haproxy}
 {HAProxy} -- the reliable, high performance {TCP/HTTP} load balancer.
 \newblock \url{https://www.haproxy.org/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{kubernetes}
+{Kubernetes} -- production-grade container orchestration.
+\newblock \url{https://kubernetes.io/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{postgresql}
+{PostgreSQL} -- the world's most advanced open source relational database.
+\newblock \url{https://www.postgresql.org/}.
 \newblock Accessed: 2026-06-30.
 
 \bibitem{powerdns}
