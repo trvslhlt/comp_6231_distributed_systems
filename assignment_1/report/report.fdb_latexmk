@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex report"] 1782943615.77058 "report.aux" "report.bbl" "report" 1782946613.72279 0
-  "./references.bib" 1782923034.17915 2278 3af06649c57ea6a549eabc4e25d6326b ""
+["bibtex report"] 1783025782.69571 "report.aux" "report.bbl" "report" 1783025862.514 0
+  "./references.bib" 1783025758.12292 3179 b407714b02f9b61bd2612a0c78cf712a ""
   "/usr/local/texlive/2026/texmf-dist/bibtex/bst/base/plain.bst" 1292289607 20613 bd3fbfa9f64872b81ac57a0dd2ed855f ""
-  "report.aux" 1782946613.21847 5879 8f457eb25670a16e6a2820d1fd1915a3 "pdflatex"
+  "report.aux" 1783025862.00243 6056 e0d4fbe48ed4926158775ec2318fb49b "pdflatex"
   (generated)
   "report.bbl"
   "report.blg"
   (rewritten before read)
-["pdflatex"] 1782946611.41199 "/Users/travisholt/github/trvslhlt/comp_6231_distributed_systems/assignment_1/report/report.tex" "report.pdf" "report" 1782946613.72301 0
-  "/Users/travisholt/github/trvslhlt/comp_6231_distributed_systems/assignment_1/report/report.tex" 1782946611.10016 21251 603439b93738fe20634438d20efe9c7e ""
+["pdflatex"] 1783025860.56757 "/Users/travisholt/github/trvslhlt/comp_6231_distributed_systems/assignment_1/report/report.tex" "report.pdf" "report" 1783025862.51424 0
+  "/Users/travisholt/github/trvslhlt/comp_6231_distributed_systems/assignment_1/report/report.tex" 1783025860.30252 23519 2d741a90b0a60dec10f43b19a7201646 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc" 1136849721 2971 def0b6c1f0b107b3b936def894055589 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2026/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -127,13 +127,12 @@
   "/usr/local/texlive/2026/texmf-var/web2c/pdftex/pdflatex.fmt" 1772409757 3636768 9f94d239f422c02416e379a36a852ffd ""
   "/usr/local/texlive/2026/texmf.cnf" 1772409725 577 648cd9f92f9c0eac486f4c71c85cfbbe ""
   "figures/architecture_overview.png" 1782837255.63096 152361 ef2d9c0ac22e92c64e5b1fa77f621aca ""
-  "figures/global_data_stack.png" 1782838022.256 147998 145bb3daaab2c5edfda4f764a6057f70 ""
   "figures/regional_app_service_stack.png" 1782842463.56785 143027 c96daf02ee83a44e14a7651a265321de ""
   "figures/ride_request.png" 1782943525.73201 81384 a549c1394ed640ad0dd88297f9e52910 ""
-  "report.aux" 1782946613.21847 5879 8f457eb25670a16e6a2820d1fd1915a3 "pdflatex"
-  "report.bbl" 1782943615.95709 1340 ad66fb41044088d79bb4ceb061611e18 "bibtex report"
-  "report.out" 1782946613.21973 3176 6263aeec40e61cc53d150c806e889ac3 "pdflatex"
-  "report.tex" 1782946611.10016 21251 603439b93738fe20634438d20efe9c7e ""
+  "report.aux" 1783025862.00243 6056 e0d4fbe48ed4926158775ec2318fb49b "pdflatex"
+  "report.bbl" 1783025782.85494 1950 a651e03601922de90833256e0931e565 "bibtex report"
+  "report.out" 1783025862.0037 3458 3973aaf691d31c1ebbdbb644270414a5 "pdflatex"
+  "report.tex" 1783025860.30252 23519 2d741a90b0a60dec10f43b19a7201646 ""
   (generated)
   "report.aux"
   "report.log"
