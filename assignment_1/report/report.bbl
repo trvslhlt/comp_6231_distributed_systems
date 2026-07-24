@@ -1,0 +1,63 @@
+\begin{thebibliography}{10}
+
+\bibitem{apachecassandra}
+{Apache Cassandra} -- the open source distributed database.
+\newblock \url{https://cassandra.apache.org/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{captheorem}
+{CAP Theorem} -- brewer's theorem.
+\newblock \url{https://en.wikipedia.org/wiki/CAP_theorem}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{cockroachdb}
+{CockroachDB} -- the distributed {SQL} database.
+\newblock \url{https://www.cockroachlabs.com/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{consistenthashing}
+{Consistent Hashing} -- a distributed hash table algorithm.
+\newblock \url{https://en.wikipedia.org/wiki/Consistent_hashing}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{envoy}
+{Envoy} -- cloud-native high-performance edge and service proxy.
+\newblock \url{https://www.envoyproxy.io/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{etcd}
+{etcd} -- a distributed, reliable key-value store for the most critical data of a distributed system.
+\newblock \url{https://etcd.io/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{h3}
+{H3} -- hexagonal hierarchical spatial index.
+\newblock \url{https://h3geo.org/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{haproxy}
+{HAProxy} -- the reliable, high performance {TCP/HTTP} load balancer.
+\newblock \url{https://www.haproxy.org/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{kubernetes}
+{Kubernetes} -- production-grade container orchestration.
+\newblock \url{https://kubernetes.io/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{postgresql}
+{PostgreSQL} -- the world's most advanced open source relational database.
+\newblock \url{https://www.postgresql.org/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{powerdns}
+{PowerDNS} -- the authoritative {DNS} server.
+\newblock \url{https://www.powerdns.com/}.
+\newblock Accessed: 2026-06-30.
+
+\bibitem{redis}
+{Redis} -- the most popular open source in-memory data store.
+\newblock \url{https://redis.io/}.
+\newblock Accessed: 2026-06-30.
+
+\end{thebibliography}
