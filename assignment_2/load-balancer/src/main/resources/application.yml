@@ -1,0 +1,30 @@
+server:
+  port: ${SERVER_PORT:8090}
+
+spring:
+  application:
+    name: load-balancer
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+vehicle-rental:
+  instance-id: ${INSTANCE_ID:${random.uuid}}
+  total-price-service:
+    # Phase 1 / single-instance dev mode: forward to one fixed Service A instance.
+    base-url: ${TOTAL_PRICE_SERVICE_URL:http://localhost:8080}
+  etcd:
+    enabled: ${ETCD_ENABLED:false}
+    endpoints: ${ETCD_ENDPOINTS:http://localhost:2379}
+    lease-ttl-seconds: ${ETCD_LEASE_TTL_SECONDS:10}

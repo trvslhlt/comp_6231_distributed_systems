@@ -1,0 +1,197 @@
+# Postgres primary + 2 streaming-replication read replicas, using the vanilla postgres image
+# (no Patroni). The init/entrypoint scripts here are the same ones validated locally under
+# db/primary and db/replica, just carried as ConfigMaps instead of bind mounts.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: vehicle-rental
+stringData:
+  POSTGRES_DB: vehicle_rental
+  POSTGRES_USER: vehicle_rental
+  POSTGRES_PASSWORD: vehicle_rental
+  POSTGRES_REPLICATION_USER: replicator
+  POSTGRES_REPLICATION_PASSWORD: replicator_pw
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-primary-init
+  namespace: vehicle-rental
+data:
+  init-replication-role.sh: |
+    #!/bin/sh
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE ROLE ${POSTGRES_REPLICATION_USER} WITH REPLICATION LOGIN PASSWORD '${POSTGRES_REPLICATION_PASSWORD}';
+    EOSQL
+    echo "host replication ${POSTGRES_REPLICATION_USER} all md5" >> "$PGDATA/pg_hba.conf"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-replica-entrypoint
+  namespace: vehicle-rental
+data:
+  replica-entrypoint.sh: |
+    #!/bin/sh
+    set -e
+    if [ -z "$(ls -A "$PGDATA" 2>/dev/null)" ]; then
+        echo "replica: empty data directory, waiting for primary at ${PRIMARY_HOST}:5432..."
+        until pg_isready -h "$PRIMARY_HOST" -p 5432 -U "$POSTGRES_REPLICATION_USER" >/dev/null 2>&1; do
+            sleep 1
+        done
+        echo "replica: taking base backup from primary"
+        PGPASSWORD="$POSTGRES_REPLICATION_PASSWORD" pg_basebackup \
+            -h "$PRIMARY_HOST" -p 5432 -D "$PGDATA" -U "$POSTGRES_REPLICATION_USER" \
+            -Fp -Xs -P -R
+    fi
+    exec docker-entrypoint.sh postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  namespace: vehicle-rental
+  labels:
+    app: postgres-primary
+spec:
+  selector:
+    app: postgres-primary
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-primary
+  namespace: vehicle-rental
+spec:
+  serviceName: postgres-primary
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-primary
+  template:
+    metadata:
+      labels:
+        app: postgres-primary
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          args: ["-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "hot_standby=on"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vehicle_rental"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: postgres-primary-init
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# Fronts both replica pods — Service B's runtime read traffic hits this, and kube-proxy spreads
+# it across whichever replicas are currently healthy. This is strictly better than the
+# docker-compose dev setup, which pins each Service B instance to one specific replica because
+# compose has no equivalent of a Service load-balancing across a StatefulSet's pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica
+  namespace: vehicle-rental
+  labels:
+    app: postgres-replica
+spec:
+  selector:
+    app: postgres-replica
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-replica
+  namespace: vehicle-rental
+spec:
+  serviceName: postgres-replica
+  replicas: 2
+  selector:
+    matchLabels:
+      app: postgres-replica
+  template:
+    metadata:
+      labels:
+        app: postgres-replica
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: PRIMARY_HOST
+              value: postgres-primary
+            - name: POSTGRES_REPLICATION_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_REPLICATION_USER
+            - name: POSTGRES_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_REPLICATION_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+          command: ["/bin/sh", "/scripts/replica-entrypoint.sh"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: replica-scripts
+              mountPath: /scripts
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vehicle_rental"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: replica-scripts
+          configMap:
+            name: postgres-replica-entrypoint
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

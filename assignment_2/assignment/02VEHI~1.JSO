@@ -1,0 +1,47 @@
+[
+    {
+        "vehicleType": "Compact",
+        "pricing": {
+            "Spring": 45,
+            "Summer": 50,
+            "Fall": 43,
+            "Winter": 40
+        }
+    },
+    {
+        "vehicleType": "Sedan",
+        "pricing": {
+            "Spring": 55,
+            "Summer": 60,
+            "Fall": 53,
+            "Winter": 50
+        }
+    },
+    {
+        "vehicleType": "SUV",
+        "pricing": {
+            "Spring": 65,
+            "Summer": 70,
+            "Fall": 63,
+            "Winter": 60
+        }
+    },
+    {
+        "vehicleType": "Convertible",
+        "pricing": {
+            "Spring": 75,
+            "Summer": 80,
+            "Fall": 73,
+            "Winter": 70
+        }
+    },
+    {
+        "vehicleType": "Truck",
+        "pricing": {
+            "Spring": 85,
+            "Summer": 90,
+            "Fall": 83,
+            "Winter": 80
+        }
+    }
+]

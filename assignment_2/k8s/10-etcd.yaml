@@ -1,0 +1,79 @@
+# 3-node etcd cluster (Raft quorum tolerates 1 node down). Standard StatefulSet-with-headless-
+# Service recipe: each pod gets a stable DNS name (etcd-0.etcd, etcd-1.etcd, etcd-2.etcd) used
+# both for peer discovery at bootstrap and by clients (jetcd is given all three as endpoints
+# and handles picking a healthy member itself).
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: vehicle-rental
+  labels:
+    app: etcd
+spec:
+  clusterIP: None
+  selector:
+    app: etcd
+  ports:
+    - name: client
+      port: 2379
+    - name: peer
+      port: 2380
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd
+  namespace: vehicle-rental
+spec:
+  serviceName: etcd
+  replicas: 3
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+    spec:
+      containers:
+        - name: etcd
+          image: quay.io/coreos/etcd:v3.5.9
+          ports:
+            - containerPort: 2379
+              name: client
+            - containerPort: 2380
+              name: peer
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              exec /usr/local/bin/etcd \
+                --name $(POD_NAME) \
+                --data-dir /var/lib/etcd \
+                --listen-client-urls http://0.0.0.0:2379 \
+                --advertise-client-urls http://$(POD_NAME).etcd.vehicle-rental.svc.cluster.local:2379 \
+                --listen-peer-urls http://0.0.0.0:2380 \
+                --initial-advertise-peer-urls http://$(POD_NAME).etcd.vehicle-rental.svc.cluster.local:2380 \
+                --initial-cluster etcd-0=http://etcd-0.etcd.vehicle-rental.svc.cluster.local:2380,etcd-1=http://etcd-1.etcd.vehicle-rental.svc.cluster.local:2380,etcd-2=http://etcd-2.etcd.vehicle-rental.svc.cluster.local:2380 \
+                --initial-cluster-state new \
+                --initial-cluster-token vehicle-rental-etcd
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/etcd
+          readinessProbe:
+            exec:
+              command: ["etcdctl", "endpoint", "health"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

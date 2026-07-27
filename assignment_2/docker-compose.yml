@@ -1,0 +1,163 @@
+# Local dev/test stack. Two simplifications vs. the k8s deployment (see k8s/), both called
+# out where they matter: etcd is a single node here (fast startup) instead of a 3-node Raft
+# cluster; and the two load-balancer instances are each exposed on their own host port, since
+# there's no Kubernetes Service selector here to route only to the current leader — check
+# whichever port returns 200 rather than 503 to find the active one.
+services:
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    command:
+      - /usr/local/bin/etcd
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+    ports:
+      - "2379:2379"
+
+  postgres-primary:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vehicle_rental
+      POSTGRES_USER: vehicle_rental
+      POSTGRES_PASSWORD: vehicle_rental
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_pw
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      ["postgres", "-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "hot_standby=on"]
+    volumes:
+      - ./db/primary/init-replication-role.sh:/docker-entrypoint-initdb.d/init-replication-role.sh:ro
+    ports:
+      - "55432:5432"
+
+  postgres-replica-1:
+    image: postgres:16-alpine
+    depends_on:
+      - postgres-primary
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      PRIMARY_HOST: postgres-primary
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_pw
+      POSTGRES_PASSWORD: vehicle_rental
+    entrypoint: ["/replica-entrypoint.sh"]
+    volumes:
+      - ./db/replica/replica-entrypoint.sh:/replica-entrypoint.sh:ro
+
+  postgres-replica-2:
+    image: postgres:16-alpine
+    depends_on:
+      - postgres-primary
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      PRIMARY_HOST: postgres-primary
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_pw
+      POSTGRES_PASSWORD: vehicle_rental
+    entrypoint: ["/replica-entrypoint.sh"]
+    volumes:
+      - ./db/replica/replica-entrypoint.sh:/replica-entrypoint.sh:ro
+
+  service-vehicle-season-price-1:
+    build:
+      context: .
+      dockerfile: service-vehicle-season-price/Dockerfile
+    depends_on:
+      - postgres-primary
+      - postgres-replica-1
+      - etcd
+    environment:
+      SERVER_PORT: 8081
+      INSTANCE_ID: season-price-1
+      INSTANCE_HOST: service-vehicle-season-price-1
+      DB_HOST: postgres-replica-1
+      FLYWAY_DB_HOST: postgres-primary
+      ETCD_ENABLED: "true"
+      ETCD_ENDPOINTS: http://etcd:2379
+    ports:
+      - "8081:8081"
+
+  service-vehicle-season-price-2:
+    build:
+      context: .
+      dockerfile: service-vehicle-season-price/Dockerfile
+    depends_on:
+      - postgres-primary
+      - postgres-replica-2
+      - etcd
+    environment:
+      SERVER_PORT: 8081
+      INSTANCE_ID: season-price-2
+      INSTANCE_HOST: service-vehicle-season-price-2
+      DB_HOST: postgres-replica-2
+      FLYWAY_DB_HOST: postgres-primary
+      ETCD_ENABLED: "true"
+      ETCD_ENDPOINTS: http://etcd:2379
+    ports:
+      - "8082:8081"
+
+  service-vehicle-total-price-1:
+    build:
+      context: .
+      dockerfile: service-vehicle-total-price/Dockerfile
+    depends_on:
+      - etcd
+      - service-vehicle-season-price-1
+      - service-vehicle-season-price-2
+    environment:
+      SERVER_PORT: 8080
+      INSTANCE_ID: total-price-1
+      INSTANCE_HOST: service-vehicle-total-price-1
+      ETCD_ENABLED: "true"
+      ETCD_ENDPOINTS: http://etcd:2379
+    ports:
+      - "8080:8080"
+
+  service-vehicle-total-price-2:
+    build:
+      context: .
+      dockerfile: service-vehicle-total-price/Dockerfile
+    depends_on:
+      - etcd
+      - service-vehicle-season-price-1
+      - service-vehicle-season-price-2
+    environment:
+      SERVER_PORT: 8080
+      INSTANCE_ID: total-price-2
+      INSTANCE_HOST: service-vehicle-total-price-2
+      ETCD_ENABLED: "true"
+      ETCD_ENDPOINTS: http://etcd:2379
+    ports:
+      - "8083:8080"
+
+  load-balancer-1:
+    build:
+      context: .
+      dockerfile: load-balancer/Dockerfile
+    depends_on:
+      - etcd
+      - service-vehicle-total-price-1
+      - service-vehicle-total-price-2
+    environment:
+      SERVER_PORT: 8090
+      INSTANCE_ID: lb-1
+      ETCD_ENABLED: "true"
+      ETCD_ENDPOINTS: http://etcd:2379
+    ports:
+      - "8090:8090"
+
+  load-balancer-2:
+    build:
+      context: .
+      dockerfile: load-balancer/Dockerfile
+    depends_on:
+      - etcd
+      - service-vehicle-total-price-1
+      - service-vehicle-total-price-2
+    environment:
+      SERVER_PORT: 8090
+      INSTANCE_ID: lb-2
+      ETCD_ENABLED: "true"
+      ETCD_ENDPOINTS: http://etcd:2379
+    ports:
+      - "8091:8090"
