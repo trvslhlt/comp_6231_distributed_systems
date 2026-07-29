@@ -5,6 +5,8 @@ import java.util.Objects;
 
 public class PriceId implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private String vehicleType;
     private String season;
 
