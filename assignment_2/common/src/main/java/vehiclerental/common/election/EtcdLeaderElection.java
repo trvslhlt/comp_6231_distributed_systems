@@ -82,7 +82,7 @@ public class EtcdLeaderElection implements AutoCloseable {
                 long leaseId = client.getLeaseClient().grant(ttlSeconds).get().getID();
 
                 Cmp keyAbsent = new Cmp(keyBytes, Cmp.Op.EQUAL, CmpTarget.createRevision(0));
-                Op claimKey = Op.put(keyBytes, candidateIdBytes, PutOption.newBuilder().withLeaseId(leaseId).build());
+                Op claimKey = Op.put(keyBytes, candidateIdBytes, PutOption.builder().withLeaseId(leaseId).build());
                 Op readKey = Op.get(keyBytes, GetOption.DEFAULT);
 
                 TxnResponse txnResponse = client.getKVClient().txn().If(keyAbsent).Then(claimKey).Else(readKey).commit().get();

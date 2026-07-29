@@ -49,7 +49,7 @@ public class EtcdServiceRegistry implements AutoCloseable {
             ByteSequence key = ByteSequence.from(serviceInstanceKey(serviceName, self.instanceId()), StandardCharsets.UTF_8);
             ByteSequence value = ByteSequence.from(mapper.writeValueAsString(self), StandardCharsets.UTF_8);
 
-            client.getKVClient().put(key, value, PutOption.newBuilder().withLeaseId(leaseId).build()).get();
+            client.getKVClient().put(key, value, PutOption.builder().withLeaseId(leaseId).build()).get();
 
             keepAlive = client.getLeaseClient().keepAlive(leaseId, new StreamObserver<>() {
                 @Override

@@ -47,7 +47,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
     public void start() {
         ByteSequence prefix = ByteSequence.from(servicePrefix(serviceName), StandardCharsets.UTF_8);
         try {
-            client.getKVClient().get(prefix, GetOption.newBuilder().isPrefix(true).build())
+            client.getKVClient().get(prefix, GetOption.builder().isPrefix(true).build())
                     .get()
                     .getKvs()
                     .forEach(this::upsert);
@@ -55,7 +55,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
             throw new IllegalStateException("Failed to load initial " + serviceName + " instances from etcd", e);
         }
 
-        watcher = client.getWatchClient().watch(prefix, WatchOption.newBuilder().isPrefix(true).build(), new Watch.Listener() {
+        watcher = client.getWatchClient().watch(prefix, WatchOption.builder().isPrefix(true).build(), new Watch.Listener() {
             @Override
             public void onNext(WatchResponse response) {
                 for (WatchEvent event : response.getEvents()) {
