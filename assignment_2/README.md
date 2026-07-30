@@ -69,8 +69,9 @@ flowchart LR
 ```
 
 etcd (a 3-node Raft cluster in Kubernetes; a single node in the docker-compose dev stack) is the
-coordination backbone underneath all three of: service discovery, load-balancer leader election,
-and (optionally) Postgres failover via Patroni — see [docs/DESIGN.md](docs/DESIGN.md).
+coordination backbone underneath service discovery and load-balancer leader election everywhere,
+plus Postgres failover via Patroni in the Kubernetes deployment specifically (docker-compose's
+Postgres setup only supports manual promotion) — see [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Modules
 

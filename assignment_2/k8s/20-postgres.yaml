@@ -1,109 +1,141 @@
-# Postgres primary + 2 streaming-replication read replicas, using the vanilla postgres image
-# (no Patroni). The init/entrypoint scripts here are the same ones validated locally under
-# db/primary and db/replica, just carried as ConfigMaps instead of bind mounts.
+# Postgres managed by Patroni (db/patroni/), coordinating over the same etcd cluster used
+# elsewhere in this project. Unlike the docker-compose setup (db/primary + db/replica, a
+# hand-rolled primary + 2 static replicas with only manual pg_promote() recovery), this is a
+# single symmetric StatefulSet of 3 identical nodes — Patroni itself decides who's primary via
+# etcd leader election and promotes a replica automatically if the primary dies. Patroni patches
+# its own pod's "role" label on every role change (on_role_change.py, using the same pattern as
+# common/k8s/PodRoleLabeler for the load balancer), and the two Services below select on that
+# label — so postgres-primary/postgres-replica always resolve to the current, correct pods with
+# no manual intervention. Service A/B's config is unchanged: they already addressed Postgres by
+# these Service names, not pod IPs, so the switch to Patroni is transparent at the application
+# layer.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres
+  namespace: vehicle-rental
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-pod-labeler
+  namespace: vehicle-rental
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-pod-labeler
+  namespace: vehicle-rental
+subjects:
+  - kind: ServiceAccount
+    name: postgres
+    namespace: vehicle-rental
+roleRef:
+  kind: Role
+  name: postgres-pod-labeler
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: v1
 kind: Secret
 metadata:
   name: postgres-credentials
   namespace: vehicle-rental
 stringData:
-  POSTGRES_DB: vehicle_rental
-  POSTGRES_USER: vehicle_rental
-  POSTGRES_PASSWORD: vehicle_rental
-  POSTGRES_REPLICATION_USER: replicator
-  POSTGRES_REPLICATION_PASSWORD: replicator_pw
+  APP_DB_NAME: vehicle_rental
+  APP_DB_USER: vehicle_rental
+  APP_DB_PASSWORD: vehicle_rental
+  PATRONI_REPLICATION_USERNAME: replicator
+  PATRONI_REPLICATION_PASSWORD: replicator_pw
+  PATRONI_SUPERUSER_USERNAME: postgres
+  PATRONI_SUPERUSER_PASSWORD: postgres_pw
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-primary-init
-  namespace: vehicle-rental
-data:
-  init-replication-role.sh: |
-    #!/bin/sh
-    set -e
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-        CREATE ROLE ${POSTGRES_REPLICATION_USER} WITH REPLICATION LOGIN PASSWORD '${POSTGRES_REPLICATION_PASSWORD}';
-    EOSQL
-    echo "host replication ${POSTGRES_REPLICATION_USER} all md5" >> "$PGDATA/pg_hba.conf"
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-replica-entrypoint
-  namespace: vehicle-rental
-data:
-  replica-entrypoint.sh: |
-    #!/bin/sh
-    set -e
-    if [ -z "$(ls -A "$PGDATA" 2>/dev/null)" ]; then
-        echo "replica: empty data directory, waiting for primary at ${PRIMARY_HOST}:5432..."
-        until pg_isready -h "$PRIMARY_HOST" -p 5432 -U "$POSTGRES_REPLICATION_USER" >/dev/null 2>&1; do
-            sleep 1
-        done
-        echo "replica: taking base backup from primary"
-        PGPASSWORD="$POSTGRES_REPLICATION_PASSWORD" pg_basebackup \
-            -h "$PRIMARY_HOST" -p 5432 -D "$PGDATA" -U "$POSTGRES_REPLICATION_USER" \
-            -Fp -Xs -P -R
-    fi
-    exec docker-entrypoint.sh postgres
----
+# Headless: gives each pod a stable DNS name (postgres-0.postgres, postgres-1.postgres, ...)
+# for Patroni's own connect_address and for cloning from whichever pod is currently the leader.
+# publishNotReadyAddresses matches the same reasoning as etcd's headless Service — a replica
+# needs to resolve the leader's DNS name to clone from it, before that replica itself is Ready.
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres-primary
+  name: postgres
   namespace: vehicle-rental
   labels:
-    app: postgres-primary
+    app: postgres
 spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
   selector:
-    app: postgres-primary
+    app: postgres
   ports:
-    - port: 5432
+    - name: postgres
+      port: 5432
+    - name: patroni-api
+      port: 8008
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: postgres-primary
+  name: postgres
   namespace: vehicle-rental
 spec:
-  serviceName: postgres-primary
-  replicas: 1
+  serviceName: postgres
+  replicas: 3
   selector:
     matchLabels:
-      app: postgres-primary
+      app: postgres
   template:
     metadata:
       labels:
-        app: postgres-primary
+        app: postgres
     spec:
+      serviceAccountName: postgres
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          image: vehicle-rental/postgres-patroni:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
+              name: postgres
+            - containerPort: 8008
+              name: patroni-api
           envFrom:
             - secretRef:
                 name: postgres-credentials
           env:
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
-          args: ["-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "hot_standby=on"]
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PATRONI_SCOPE
+              value: vehicle-rental-pg
+            - name: PATRONI_NAME
+              value: $(POD_NAME)
+            - name: PATRONI_ETCD3_HOSTS
+              value: "'etcd-0.etcd.vehicle-rental.svc.cluster.local:2379','etcd-1.etcd.vehicle-rental.svc.cluster.local:2379','etcd-2.etcd.vehicle-rental.svc.cluster.local:2379'"
+            - name: PATRONI_RESTAPI_LISTEN
+              value: 0.0.0.0:8008
+            - name: PATRONI_RESTAPI_CONNECT_ADDRESS
+              value: $(POD_NAME).postgres.vehicle-rental.svc.cluster.local:8008
+            - name: PATRONI_POSTGRESQL_LISTEN
+              value: 0.0.0.0:5432
+            - name: PATRONI_POSTGRESQL_CONNECT_ADDRESS
+              value: $(POD_NAME).postgres.vehicle-rental.svc.cluster.local:5432
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-            - name: init-scripts
-              mountPath: /docker-entrypoint-initdb.d
           readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "vehicle_rental"]
-            initialDelaySeconds: 5
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 10
             periodSeconds: 5
-      volumes:
-        - name: init-scripts
-          configMap:
-            name: postgres-primary-init
-            defaultMode: 0755
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -113,10 +145,22 @@ spec:
           requests:
             storage: 1Gi
 ---
-# Fronts both replica pods — Service B's runtime read traffic hits this, and kube-proxy spreads
-# it across whichever replicas are currently healthy. This is strictly better than the
-# docker-compose dev setup, which pins each Service B instance to one specific replica because
-# compose has no equivalent of a Service load-balancing across a StatefulSet's pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  namespace: vehicle-rental
+  labels:
+    app: postgres-primary
+spec:
+  selector:
+    app: postgres
+    role: primary
+  ports:
+    - port: 5432
+---
+# Fronts every replica pod — Service B's runtime read traffic hits this, and kube-proxy spreads
+# it across whichever replicas are currently healthy.
 apiVersion: v1
 kind: Service
 metadata:
@@ -126,72 +170,7 @@ metadata:
     app: postgres-replica
 spec:
   selector:
-    app: postgres-replica
+    app: postgres
+    role: replica
   ports:
     - port: 5432
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: postgres-replica
-  namespace: vehicle-rental
-spec:
-  serviceName: postgres-replica
-  replicas: 2
-  selector:
-    matchLabels:
-      app: postgres-replica
-  template:
-    metadata:
-      labels:
-        app: postgres-replica
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:16-alpine
-          ports:
-            - containerPort: 5432
-          env:
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
-            - name: PRIMARY_HOST
-              value: postgres-primary
-            - name: POSTGRES_REPLICATION_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: POSTGRES_REPLICATION_USER
-            - name: POSTGRES_REPLICATION_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: POSTGRES_REPLICATION_PASSWORD
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: POSTGRES_PASSWORD
-          command: ["/bin/sh", "/scripts/replica-entrypoint.sh"]
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/postgresql/data
-            - name: replica-scripts
-              mountPath: /scripts
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "vehicle_rental"]
-            initialDelaySeconds: 10
-            periodSeconds: 5
-      volumes:
-        - name: replica-scripts
-          configMap:
-            name: postgres-replica-entrypoint
-            defaultMode: 0755
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        resources:
-          requests:
-            storage: 1Gi

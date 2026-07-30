@@ -30,23 +30,38 @@ replication is used instead, and etcd is reserved for coordination (see below).
 
 ## Postgres replication
 
-1 primary + 2 streaming-replication read replicas, using the vanilla `postgres:16-alpine` image
-(no Patroni/Bitnami) — a replica's custom entrypoint runs `pg_basebackup ... -R` against the
-primary on first start, which writes `standby.signal` and `primary_conninfo` for us, then hands
-off to the normal Postgres entrypoint. This was validated directly (streaming confirmed via
-`pg_stat_replication`, replica correctly rejects writes, and a stopped primary was successfully
-recovered by promoting a replica with `SELECT pg_promote()`).
+Deliberately different implementations in the two environments, same as the load balancer's
+active-passive routing (in-process guard everywhere, pod-label routing only in Kubernetes):
 
-All runtime query traffic is reads, so Service B's `spring.datasource.*` points at a replica
-(the `postgres-replica` Kubernetes Service load-balances across both; docker-compose, lacking an
-equivalent, just pins each Service B instance to one specific replica). Flyway migrations are
-configured as a **separate** connection (`spring.flyway.*`) that always targets the primary,
-since replicas are read-only and can't run migrations.
+- **docker-compose**: 1 primary + 2 streaming-replication read replicas, using the vanilla
+  `postgres:16-alpine` image (no Patroni) — a replica's custom entrypoint (`db/replica/`) runs
+  `pg_basebackup ... -R` against the primary on first start, which writes `standby.signal` and
+  `primary_conninfo` for us, then hands off to the normal Postgres entrypoint. Fault tolerance
+  here is manual promotion only (`SELECT pg_promote()`), exercised in
+  [../demo/compose/05-kill-postgres-primary.sh](../demo/compose/05-kill-postgres-primary.sh).
+- **Kubernetes**: a single symmetric 3-node StatefulSet, all identical, managed by
+  [Patroni](../db/patroni/) — Patroni itself decides who's primary via leader election over the
+  same etcd cluster used for service discovery and load-balancer election, and automatically
+  promotes a replica if the primary dies, with no manual `pg_promote()` needed. Failover is
+  driven by the same SIGTERM-triggers-immediate-lock-release pattern used throughout this
+  project (etcd's TTL is a backstop for an ungraceful crash, not the common case), so it's
+  typically sub-second, not gated on the lease TTL. On every role change, Patroni runs a
+  callback (`db/patroni/on_role_change.py`) that patches its own pod's `role` label — the exact
+  same pattern `common/k8s/PodRoleLabeler` uses for the load balancer, just reimplemented in
+  Python since this image is Patroni's, not Spring's. The `postgres-primary`/`postgres-replica`
+  Services select on that label, so they always resolve to the current, correct pods. Verified
+  live via repeated failovers: Patroni's own `/history` endpoint confirmed genuine timeline
+  switches (not stale relabeling), and a fresh `CREATE TABLE`/`DROP TABLE` against
+  `postgres-primary` succeeded immediately after each one with zero manual intervention — see
+  [../demo/kind/04-kill-postgres-primary.sh](../demo/kind/04-kill-postgres-primary.sh).
 
-**Baseline fault tolerance** is manual promotion (`pg_promote()` or `pg_ctl promote`), exercised
-in [../demo/](../demo/). **Stretch, not implemented**: swap in Patroni using the same etcd cluster
-as its DCS, for automatic failover — this would fold Postgres HA into the same coordination
-mechanism as everything else rather than bolting on a second, unrelated one.
+In both environments, all runtime query traffic is reads, so Service B's `spring.datasource.*`
+points at a replica (the `postgres-replica` Kubernetes Service load-balances across both;
+docker-compose, lacking an equivalent, just pins each Service B instance to one specific
+replica). Flyway migrations are configured as a **separate** connection (`spring.flyway.*`) that
+always targets the primary, since replicas are read-only and can't run migrations — this stays
+true regardless of which node is currently primary, in either environment, since Service A/B
+address Postgres by Service name, never by pod identity.
 
 ## etcd's three jobs
 
@@ -62,7 +77,9 @@ A single 3-node etcd cluster (Raft quorum) backs:
    that isn't first watches only the single key immediately ahead of it, so a leader's death
    wakes exactly one successor rather than every candidate racing at once — this avoids the
    thundering herd a single shared mutex key would cause as candidate count grows.
-3. Not implemented, but designed for: Patroni's DCS backend for Postgres failover (see above).
+3. **Patroni's DCS backend for Postgres failover** (Kubernetes only — see above): a distinct
+   key prefix (`PATRONI_SCOPE=vehicle-rental-pg`) keeps this fully isolated from the other two
+   jobs' keys, despite sharing the same 3-node etcd cluster.
 
 ## Why Spring Cloud, and where
 

@@ -32,12 +32,12 @@ list re-routes on its own instead of you checking two ports by hand. From `demo/
 
 | Script | Demonstrates |
 |---|---|
-| `00-setup.sh` | Creates a kind cluster, builds + loads the three images, applies `k8s/`, waits for everything Ready |
+| `00-setup.sh` | Creates a kind cluster, builds + loads all four images, applies `k8s/`, waits for everything Ready |
 | `port-forward.sh` | Run in its own terminal; forwards `localhost:8090` to the client-facing Service. Every other script here assumes this is running — **and must be re-run after scenario 3** (see the NOTE in the script; `kubectl port-forward` binds to one pod at start and doesn't follow the Service's endpoint changes, unlike the Service itself). |
 | `01-golden-path.sh` | Same as compose, against the single Service entrypoint — no port-checking needed |
 | `02-kill-service-b.sh` | The deregistration side of service discovery, via `kubectl scale` instead of `docker compose kill` — see the NOTE in the script for why a true crash is surprisingly hard to reproduce faithfully in Kubernetes (the lease-expiry path specifically is better observed via `../compose/03-kill-service-b.sh`) |
 | `03-kill-load-balancer.sh` | The `role` label flip, watched live |
-| `04-kill-postgres-primary.sh` | Same Postgres scenario; the StatefulSet recreates the deleted pod |
+| `04-kill-postgres-primary.sh` | Automatic Postgres failover via Patroni — no `pg_promote()` anywhere in this script, unlike the compose version. A different node is elected primary (confirmed via Patroni's own `/history` endpoint, not just a relabel), and a fresh write against `postgres-primary` succeeds immediately after, all with zero manual intervention. |
 | `05-teardown.sh` | Tears down the whole kind cluster |
 
 ```bash

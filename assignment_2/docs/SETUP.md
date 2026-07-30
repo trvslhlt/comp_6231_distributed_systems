@@ -95,11 +95,11 @@ flowchart TB
             bPods["Deployment<br/>replicas: N"]
         end
 
-        subgraph PGK["Postgres"]
-            pgPrimarySvc["Service: postgres-primary"]
-            pgPrimaryPod["StatefulSet<br/>replicas: 1"]
-            pgReplicaSvc["Service: postgres-replica"]
-            pgReplicaPods["StatefulSet<br/>replicas: 2"]
+        subgraph PGK["Postgres (Patroni)"]
+            pgPrimarySvc["Service: postgres-primary<br/>selector: role=primary"]
+            pgReplicaSvc["Service: postgres-replica<br/>selector: role=replica"]
+            pgPods["StatefulSet: postgres<br/>replicas: 3 (symmetric —<br/>Patroni elects the primary)"]
+            pgRBAC["ServiceAccount + Role<br/>(patch own pod's role label)"]
         end
 
         subgraph ETCDK["etcd"]
@@ -116,10 +116,11 @@ flowchart TB
     aPods -.->|pod IP via etcd, not bSvc| bPods
     bSvc --- bPods
     bPods --> pgReplicaSvc
-    pgReplicaSvc --> pgReplicaPods
+    pgReplicaSvc --> pgPods
     bPods -.->|Flyway migrations only| pgPrimarySvc
-    pgPrimarySvc --> pgPrimaryPod
-    pgPrimaryPod ==>|streaming replication| pgReplicaPods
+    pgPrimarySvc --> pgPods
+    pgPods --- pgRBAC
+    pgPods -.->|leader election| etcdSvc
     lbPods -.->|leader election| etcdSvc
     aPods -.->|discovery| etcdSvc
     bPods -.->|registration| etcdSvc
@@ -135,19 +136,25 @@ and Service B) exist mainly for conventional in-namespace addressability and deb
 traffic bypasses them entirely and goes straight to pod IPs that Spring Cloud LoadBalancer
 resolved via etcd (see [DESIGN.md](DESIGN.md)). The highlighted (blue) Services are the ones
 genuinely on the hot path: the load balancer's Service (the only way in, and the mechanism behind
-active-passive routing), and Postgres's two Services (real kube-proxy load balancing across the
-replica pods). etcd's Service is used by clients as a set of endpoints to connect to, same as the
-docker-compose setup, just multiplied by three nodes.
+active-passive routing), and Postgres's two Services — both select against the *same* StatefulSet
+by its Patroni-managed `role` label (mirroring exactly how the load balancer's Service selects on
+`role=active`), not two separate pod groups, so kube-proxy's endpoint list always reflects
+whichever pod Patroni currently considers primary or replica. etcd's Service is used by clients as
+a set of endpoints to connect to, same as the docker-compose setup, just multiplied by three
+nodes — and now also by Patroni itself, coordinating Postgres leader election under its own key
+prefix, isolated from the other two uses of the same cluster.
 
 ```bash
-# Build the three application images (reuses the same Dockerfiles as docker-compose)
+# Build the application images (reuses the same Dockerfiles as docker-compose, plus the
+# Patroni-managed Postgres image used only in this Kubernetes path — see db/patroni/)
+docker build -t vehicle-rental/postgres-patroni:latest ./db/patroni
 docker build -t vehicle-rental/service-vehicle-season-price:latest -f service-vehicle-season-price/Dockerfile .
 docker build -t vehicle-rental/service-vehicle-total-price:latest -f service-vehicle-total-price/Dockerfile .
 docker build -t vehicle-rental/load-balancer:latest -f load-balancer/Dockerfile .
 
 # Make the images available to your cluster (pick the one matching your tool):
-kind load docker-image vehicle-rental/service-vehicle-season-price:latest vehicle-rental/service-vehicle-total-price:latest vehicle-rental/load-balancer:latest
-# or: minikube image load vehicle-rental/service-vehicle-season-price:latest ...
+kind load docker-image vehicle-rental/postgres-patroni:latest vehicle-rental/service-vehicle-season-price:latest vehicle-rental/service-vehicle-total-price:latest vehicle-rental/load-balancer:latest
+# or: minikube image load vehicle-rental/postgres-patroni:latest ...
 
 kubectl apply -f k8s/
 kubectl -n vehicle-rental get pods -w   # wait for everything to reach Running/Ready
