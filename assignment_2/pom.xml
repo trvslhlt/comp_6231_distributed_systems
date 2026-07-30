@@ -51,10 +51,18 @@
                 <artifactId>jetcd-core</artifactId>
                 <version>${jetcd.version}</version>
             </dependency>
+            <!-- Import fabric8's own BOM rather than pinning kubernetes-client alone: that
+                 artifact's 6.13.4 release transitively pulled kubernetes-client-api (and every
+                 kubernetes-model-* submodule) at 6.9.2 — a real cross-artifact version skew
+                 that caused a silent LinkageError deep in a background thread at runtime (no
+                 exception logged, since Error isn't caught by ordinary Exception handling).
+                 The BOM guarantees every fabric8 module resolves to versions built together. -->
             <dependency>
                 <groupId>io.fabric8</groupId>
-                <artifactId>kubernetes-client</artifactId>
+                <artifactId>kubernetes-client-bom</artifactId>
                 <version>${kubernetes-client.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -11,6 +11,10 @@ metadata:
     app: etcd
 spec:
   clusterIP: None
+  # Without this, DNS records for a pod (etcd-0.etcd, etcd-1.etcd, ...) are only published once
+  # that pod is Ready — but no pod can become Ready until it resolves its peers to form Raft
+  # quorum. Publishing addresses regardless of readiness breaks that circular dependency.
+  publishNotReadyAddresses: true
   selector:
     app: etcd
   ports:
@@ -27,6 +31,10 @@ metadata:
 spec:
   serviceName: etcd
   replicas: 3
+  # Default (OrderedReady) waits for etcd-0 to become Ready before creating etcd-1, but etcd-0
+  # can never become Ready without its peers to form Raft quorum with — a deadlock for any
+  # quorum-based clustered StatefulSet. Parallel creates all three pods at once instead.
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: etcd
@@ -48,19 +56,20 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          command: ["/bin/sh", "-c"]
+          # No shell wrapper: this image is minimal and has no /bin/sh. Kubernetes substitutes
+          # $(POD_NAME) in command/args itself (matching the env var declared above), so no
+          # shell is needed for that either.
+          command: ["/usr/local/bin/etcd"]
           args:
-            - |
-              exec /usr/local/bin/etcd \
-                --name $(POD_NAME) \
-                --data-dir /var/lib/etcd \
-                --listen-client-urls http://0.0.0.0:2379 \
-                --advertise-client-urls http://$(POD_NAME).etcd.vehicle-rental.svc.cluster.local:2379 \
-                --listen-peer-urls http://0.0.0.0:2380 \
-                --initial-advertise-peer-urls http://$(POD_NAME).etcd.vehicle-rental.svc.cluster.local:2380 \
-                --initial-cluster etcd-0=http://etcd-0.etcd.vehicle-rental.svc.cluster.local:2380,etcd-1=http://etcd-1.etcd.vehicle-rental.svc.cluster.local:2380,etcd-2=http://etcd-2.etcd.vehicle-rental.svc.cluster.local:2380 \
-                --initial-cluster-state new \
-                --initial-cluster-token vehicle-rental-etcd
+            - --name=$(POD_NAME)
+            - --data-dir=/var/lib/etcd
+            - --listen-client-urls=http://0.0.0.0:2379
+            - --advertise-client-urls=http://$(POD_NAME).etcd.vehicle-rental.svc.cluster.local:2379
+            - --listen-peer-urls=http://0.0.0.0:2380
+            - --initial-advertise-peer-urls=http://$(POD_NAME).etcd.vehicle-rental.svc.cluster.local:2380
+            - --initial-cluster=etcd-0=http://etcd-0.etcd.vehicle-rental.svc.cluster.local:2380,etcd-1=http://etcd-1.etcd.vehicle-rental.svc.cluster.local:2380,etcd-2=http://etcd-2.etcd.vehicle-rental.svc.cluster.local:2380
+            - --initial-cluster-state=new
+            - --initial-cluster-token=vehicle-rental-etcd
           volumeMounts:
             - name: data
               mountPath: /var/lib/etcd
