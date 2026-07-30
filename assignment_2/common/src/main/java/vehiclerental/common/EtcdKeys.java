@@ -14,7 +14,11 @@ public final class EtcdKeys {
         return servicePrefix(serviceName) + instanceId;
     }
 
-    public static String electionKey(String electionName) {
-        return "/election/" + electionName + "/leader";
+    public static String electionPrefix(String electionName) {
+        return "/election/" + electionName + "/candidates/";
+    }
+
+    public static String electionCandidateKey(String electionName, String candidateId) {
+        return electionPrefix(electionName) + candidateId;
     }
 }

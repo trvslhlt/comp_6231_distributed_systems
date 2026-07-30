@@ -56,10 +56,12 @@ A single 3-node etcd cluster (Raft quorum) backs:
    and heartbeat via lease keep-alive (`common/discovery/EtcdServiceRegistry`); consumers watch
    the key prefix (`EtcdServiceDiscovery`). A dead instance's key disappears automatically when
    its lease expires — no separate health-check protocol.
-2. **Load-balancer leader election** — a single-key mutex recipe (create-if-absent under a TTL
-   lease; losers watch the key for deletion and re-campaign) in `common/election/EtcdLeaderElection`.
-   Only two candidates ever compete here, so etcd's fancier fair/FIFO election recipe wasn't
-   needed.
+2. **Load-balancer leader election** — etcd's fair/FIFO election recipe in
+   `common/election/EtcdLeaderElection`: each candidate creates its own key (its own TTL lease)
+   under a shared prefix, and whichever key has the lowest creation revision leads. A candidate
+   that isn't first watches only the single key immediately ahead of it, so a leader's death
+   wakes exactly one successor rather than every candidate racing at once — this avoids the
+   thundering herd a single shared mutex key would cause as candidate count grows.
 3. Not implemented, but designed for: Patroni's DCS backend for Postgres failover (see above).
 
 ## Why Spring Cloud, and where

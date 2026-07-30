@@ -2,12 +2,9 @@ package vehiclerental.common.election;
 
 import io.etcd.jetcd.ByteSequence;
 import io.etcd.jetcd.Client;
+import io.etcd.jetcd.KeyValue;
 import io.etcd.jetcd.Watch;
-import io.etcd.jetcd.kv.TxnResponse;
 import io.etcd.jetcd.lease.LeaseKeepAliveResponse;
-import io.etcd.jetcd.op.Cmp;
-import io.etcd.jetcd.op.CmpTarget;
-import io.etcd.jetcd.op.Op;
 import io.etcd.jetcd.options.GetOption;
 import io.etcd.jetcd.options.PutOption;
 import io.etcd.jetcd.options.WatchOption;
@@ -19,36 +16,41 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static vehiclerental.common.EtcdKeys.electionKey;
+import static vehiclerental.common.EtcdKeys.electionCandidateKey;
+import static vehiclerental.common.EtcdKeys.electionPrefix;
 
 /**
- * Single-key mutex leader election over etcd: whichever candidate first creates the election
- * key (via a create-if-absent transaction) backed by its own TTL lease is the leader. If its
- * lease ever stops being renewed (process death, network partition), etcd deletes the key,
- * the losing candidates notice the deletion and race to create it again.
- *
- * This intentionally only ever has two candidates in this project (the two load-balancer
- * replicas), so a simple mutex is sufficient — etcd's own fair/FIFO election recipe is not
- * needed here.
+ * Fair (FIFO) leader election over etcd: every candidate creates its own key, under its own TTL
+ * lease, beneath a shared prefix. Whichever key has the lowest creation revision is the leader.
+ * A candidate that isn't first watches only the single key immediately ahead of it in revision
+ * order — not the whole prefix — so when the leader's lease expires (process death, network
+ * partition), exactly one waiting candidate wakes up and re-checks its position, rather than
+ * every candidate racing at once. That race (a "thundering herd") is what a single shared mutex
+ * key would produce under many candidates; this queue-based scheme avoids it and is etcd's
+ * standard recipe for elections with more than a couple of participants.
  */
 public class EtcdLeaderElection implements AutoCloseable {
 
     public interface LeadershipListener {
         void onElected();
-
         void onDemoted();
     }
 
     private static final Logger log = LoggerFactory.getLogger(EtcdLeaderElection.class);
     private static final long RETRY_BACKOFF_SECONDS = 2;
+    private static final long WAKE_POLL_SECONDS = 1;
 
     private final Client client;
-    private final ByteSequence keyBytes;
+    private final ByteSequence prefixBytes;
+    private final ByteSequence ownKeyBytes;
     private final ByteSequence candidateIdBytes;
     private final String candidateId;
     private final long ttlSeconds;
@@ -57,9 +59,16 @@ public class EtcdLeaderElection implements AutoCloseable {
 
     private volatile boolean running = false;
 
-    public EtcdLeaderElection(Client client, String electionName, String candidateId, long ttlSeconds, LeadershipListener listener) {
+    public EtcdLeaderElection(
+        Client client,
+        String electionName,
+        String candidateId,
+        long ttlSeconds,
+        LeadershipListener listener
+    ) {
         this.client = client;
-        this.keyBytes = ByteSequence.from(electionKey(electionName), StandardCharsets.UTF_8);
+        this.prefixBytes = ByteSequence.from(electionPrefix(electionName), StandardCharsets.UTF_8);
+        this.ownKeyBytes = ByteSequence.from(electionCandidateKey(electionName, candidateId), StandardCharsets.UTF_8);
         this.candidateId = candidateId;
         this.candidateIdBytes = ByteSequence.from(candidateId, StandardCharsets.UTF_8);
         this.ttlSeconds = ttlSeconds;
@@ -79,20 +88,7 @@ public class EtcdLeaderElection implements AutoCloseable {
     private void campaignLoop() {
         while (running) {
             try {
-                long leaseId = client.getLeaseClient().grant(ttlSeconds).get().getID();
-
-                Cmp keyAbsent = new Cmp(keyBytes, Cmp.Op.EQUAL, CmpTarget.createRevision(0));
-                Op claimKey = Op.put(keyBytes, candidateIdBytes, PutOption.builder().withLeaseId(leaseId).build());
-                Op readKey = Op.get(keyBytes, GetOption.DEFAULT);
-
-                TxnResponse txnResponse = client.getKVClient().txn().If(keyAbsent).Then(claimKey).Else(readKey).commit().get();
-
-                if (txnResponse.isSucceeded()) {
-                    holdLeadershipUntilLost(leaseId);
-                } else {
-                    client.getLeaseClient().revoke(leaseId).get();
-                    waitForCurrentLeaderToDisappear();
-                }
+                runOneTerm();
             } catch (Exception e) {
                 log.warn("Election attempt for {} failed, retrying in {}s", candidateId, RETRY_BACKOFF_SECONDS, e);
                 sleep(RETRY_BACKOFF_SECONDS);
@@ -100,54 +96,118 @@ public class EtcdLeaderElection implements AutoCloseable {
         }
     }
 
-    private void holdLeadershipUntilLost(long leaseId) {
-        CountDownLatch lostLeadership = new CountDownLatch(1);
+    /**
+     * Registers this candidate's own key, then either leads (if it's first in line) or waits in
+     * line, holding leadership (if won) until the lease is lost.
+     */
+    private void runOneTerm() throws Exception {
+        long leaseId = client.getLeaseClient().grant(ttlSeconds).get().getID();
+        client.getKVClient().put(ownKeyBytes, candidateIdBytes, PutOption.builder().withLeaseId(leaseId).build()).get();
+
+        AtomicBoolean leaseLost = new AtomicBoolean(false);
+        // Points at whichever latch the campaign thread is currently blocked on, so the
+        // keep-alive callback (running on a gRPC thread) can wake it up immediately on failure
+        // instead of only being noticed on the next poll.
+        AtomicReference<CountDownLatch> currentWait = new AtomicReference<>();
         CloseableClient keepAlive = client.getLeaseClient().keepAlive(leaseId, new StreamObserver<>() {
             @Override
             public void onNext(LeaseKeepAliveResponse value) {
-                // lease renewed, still leader
+                // lease renewed, still holding our place (or leadership)
             }
 
             @Override
             public void onError(Throwable t) {
-                log.warn("Lost leadership: lease keep-alive for {} failed", candidateId, t);
-                lostLeadership.countDown();
+                log.warn("Lease for {} lost: keep-alive failed", candidateId, t);
+                wakeUp();
             }
 
             @Override
             public void onCompleted() {
-                lostLeadership.countDown();
+                wakeUp();
+            }
+
+            private void wakeUp() {
+                leaseLost.set(true);
+                CountDownLatch latch = currentWait.get();
+                if (latch != null) {
+                    latch.countDown();
+                }
             }
         });
 
-        log.info("{} elected leader", candidateId);
-        listener.onElected();
+        // Set the instant onElected() fires (not derived from waitInLineThenHoldLeadership's
+        // return value) so a close()-triggered interrupt during holdLeadershipUntilLost still
+        // results in onDemoted() being called from the finally block below.
+        AtomicBoolean elected = new AtomicBoolean(false);
         try {
-            lostLeadership.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            waitInLineThenHoldLeadership(leaseLost, elected, currentWait);
         } finally {
             keepAlive.close();
-            listener.onDemoted();
-            log.info("{} is no longer leader", candidateId);
+            if (elected.get()) {
+                listener.onDemoted();
+                log.info("{} is no longer leader", candidateId);
+            }
         }
     }
 
-    private void waitForCurrentLeaderToDisappear() throws InterruptedException {
-        CountDownLatch leaderGone = new CountDownLatch(1);
-        Watch.Watcher watcher = client.getWatchClient().watch(keyBytes, WatchOption.DEFAULT, new Watch.Listener() {
+    /**
+     * Repeatedly checks this candidate's position among all live candidate keys. If it's first,
+     * announces leadership (setting {@code elected}) and blocks until the lease is lost.
+     * Otherwise, watches only the one key directly ahead of it and re-checks position once that
+     * key disappears.
+     */
+    private void waitInLineThenHoldLeadership(AtomicBoolean leaseLost, AtomicBoolean elected, AtomicReference<CountDownLatch> currentWait)
+            throws Exception {
+        while (running && !leaseLost.get()) {
+            List<KeyValue> candidates = client.getKVClient().get(prefixBytes, GetOption.builder()
+                    .isPrefix(true)
+                    .withSortField(GetOption.SortTarget.CREATE)
+                    .withSortOrder(GetOption.SortOrder.ASCEND)
+                    .build()).get().getKvs();
+
+            int position = indexOfOwnKey(candidates);
+            if (position < 0) {
+                // Our own key is gone — our lease already expired or was revoked.
+                return;
+            }
+
+            if (position == 0) {
+                log.info("{} elected leader", candidateId);
+                listener.onElected();
+                elected.set(true);
+                awaitLatch(new CountDownLatch(1), leaseLost, currentWait);
+                return;
+            }
+
+            ByteSequence predecessorKey = candidates.get(position - 1).getKey();
+            waitForKeyToDisappear(predecessorKey, leaseLost, currentWait);
+        }
+    }
+
+    private int indexOfOwnKey(List<KeyValue> candidates) {
+        for (int i = 0; i < candidates.size(); i++) {
+            if (candidates.get(i).getKey().equals(ownKeyBytes)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void waitForKeyToDisappear(ByteSequence key, AtomicBoolean leaseLost, AtomicReference<CountDownLatch> currentWait) {
+        CountDownLatch keyGoneOrLeaseLost = new CountDownLatch(1);
+        Watch.Watcher watcher = client.getWatchClient().watch(key, WatchOption.DEFAULT, new Watch.Listener() {
             @Override
             public void onNext(WatchResponse response) {
                 for (WatchEvent event : response.getEvents()) {
                     if (event.getEventType() == WatchEvent.EventType.DELETE) {
-                        leaderGone.countDown();
+                        keyGoneOrLeaseLost.countDown();
                     }
                 }
             }
 
             @Override
             public void onError(Throwable throwable) {
-                leaderGone.countDown();
+                keyGoneOrLeaseLost.countDown();
             }
 
             @Override
@@ -156,9 +216,27 @@ public class EtcdLeaderElection implements AutoCloseable {
         });
 
         try {
-            leaderGone.await();
+            awaitLatch(keyGoneOrLeaseLost, leaseLost, currentWait);
         } finally {
             watcher.close();
+        }
+    }
+
+    /**
+     * Blocks on {@code latch}, registering it as the thing {@code leaseLost} should wake, with a
+     * short poll as a backstop in case the lease was lost in the narrow window before
+     * registration. Swallows interruption (restoring the interrupt flag) rather than throwing,
+     * so a {@link #close()} during this wait unwinds cleanly through the normal return path —
+     * the caller's {@code finally} blocks (closing the watcher, calling onDemoted) still run.
+     */
+    private void awaitLatch(CountDownLatch latch, AtomicBoolean leaseLost, AtomicReference<CountDownLatch> currentWait) {
+        currentWait.set(latch);
+        try {
+            while (!leaseLost.get() && latch.getCount() > 0) {
+                latch.await(WAKE_POLL_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

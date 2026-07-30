@@ -13,8 +13,8 @@ import vehiclerental.loadbalancer.config.InstanceIdentity;
  * Wins/loses the "load-balancer" election in etcd and reacts by flipping both
  * {@link LeadershipState} (guards client-facing traffic in-process) and this pod's
  * Kubernetes role label (so the client-facing Service only ever routes to the leader — see
- * {@link PodRoleLabeler}). Only two candidates ever compete here (the two load-balancer
- * replicas), which is why {@link EtcdLeaderElection}'s simple mutex election is sufficient.
+ * {@link PodRoleLabeler}). {@link EtcdLeaderElection} uses etcd's fair/FIFO election recipe, so
+ * this scales to many candidates without a thundering herd on every leadership change.
  */
 @Configuration
 @ConditionalOnProperty(name = "vehicle-rental.etcd.enabled", havingValue = "true")
