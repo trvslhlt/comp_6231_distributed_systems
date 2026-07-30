@@ -29,16 +29,21 @@ GET /price?vehicleType=SUV&season=Summer
 
 ```json
 {
-  "vehicleType": "SUV",
-  "season": "summer",
-  "pricePerDay": 70.00,
-  "servedByInstanceId": "f1aeb17e-874c-4cdd-8bf9-079ae8f193a0",
-  "servedByPort": 8081
+  "data": {
+    "vehicleType": "SUV",
+    "season": "summer",
+    "pricePerDay": 70.00
+  },
+  "debug": {
+    "servedByInstanceId": "f1aeb17e-874c-4cdd-8bf9-079ae8f193a0",
+    "servedByPort": 8081
+  }
 }
 ```
 
-`servedByInstanceId` / `servedByPort` identify which of the N Service B instances handled the
-request — useful for observing load balancing across instances.
+`data` is the client-relevant answer. `debug` identifies which of the N Service B instances
+handled the request — useful for observing load balancing across instances, not part of the API
+contract clients should depend on.
 
 Errors: `404 not_found` if the vehicle type or season combination doesn't exist; `400 bad_request`
 if `season` isn't one of the four valid values.
@@ -65,19 +70,24 @@ GET /total?vehicleType=SUV&season=Winter&days=10
 
 ```json
 {
-  "vehicleType": "SUV",
-  "season": "winter",
-  "days": 10,
-  "pricePerDay": 60.00,
-  "totalPrice": 600.00,
-  "servedByInstanceId": "74c58f78-ee2c-4856-98ba-ce069affbf4f",
-  "servedByPort": 8080,
-  "upstreamInstanceId": "f1aeb17e-874c-4cdd-8bf9-079ae8f193a0"
+  "data": {
+    "vehicleType": "SUV",
+    "season": "winter",
+    "days": 10,
+    "pricePerDay": 60.00,
+    "totalPrice": 600.00
+  },
+  "debug": {
+    "servedByInstanceId": "74c58f78-ee2c-4856-98ba-ce069affbf4f",
+    "servedByPort": 8080,
+    "upstreamInstanceId": "f1aeb17e-874c-4cdd-8bf9-079ae8f193a0"
+  }
 }
 ```
 
-`servedByInstanceId` identifies the Service A instance; `upstreamInstanceId` identifies which
-Service B instance it called — together these show both load-balancing hops in one response.
+`data` is the client-relevant answer. In `debug`, `servedByInstanceId` identifies the Service A
+instance and `upstreamInstanceId` identifies which Service B instance it called — together these
+show both load-balancing hops in one response.
 
 Errors: `400 bad_request` if `days < 1`; otherwise errors from Service B are passed through
 (`404 not_found` for an unknown vehicle type/season, `400 bad_request` for an invalid season).

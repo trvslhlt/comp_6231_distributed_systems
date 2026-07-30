@@ -28,17 +28,21 @@ public class TotalPriceController {
         }
 
         SeasonPriceResponse seasonPrice = seasonPriceClient.getPrice(vehicleType, season);
-        BigDecimal total = seasonPrice.pricePerDay().multiply(BigDecimal.valueOf(days));
+        BigDecimal total = seasonPrice.data().pricePerDay().multiply(BigDecimal.valueOf(days));
 
         return new TotalPriceResponse(
-                seasonPrice.vehicleType(),
-                seasonPrice.season(),
-                days,
-                seasonPrice.pricePerDay(),
-                total,
-                instanceIdentity.getInstanceId(),
-                instanceIdentity.getPort(),
-                seasonPrice.servedByInstanceId()
+                new TotalPriceResponse.Data(
+                        seasonPrice.data().vehicleType(),
+                        seasonPrice.data().season(),
+                        days,
+                        seasonPrice.data().pricePerDay(),
+                        total
+                ),
+                new TotalPriceResponse.Debug(
+                        instanceIdentity.getInstanceId(),
+                        instanceIdentity.getPort(),
+                        seasonPrice.debug().servedByInstanceId()
+                )
         );
     }
 }

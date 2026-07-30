@@ -34,11 +34,8 @@ public class SeasonPriceController {
                 .orElseThrow(() -> new PriceNotFoundException(vehicleType, season));
 
         return new SeasonPriceResponse(
-                price.getVehicleType(),
-                price.getSeason(),
-                price.getPricePerDay(),
-                instanceIdentity.getInstanceId(),
-                instanceIdentity.getPort()
+                new SeasonPriceResponse.Data(price.getVehicleType(), price.getSeason(), price.getPricePerDay()),
+                new SeasonPriceResponse.Debug(instanceIdentity.getInstanceId(), instanceIdentity.getPort())
         );
     }
 }

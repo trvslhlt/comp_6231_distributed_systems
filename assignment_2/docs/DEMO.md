@@ -18,13 +18,13 @@ Use whichever port answered 200 as `$LB_PORT` below.
 ```bash
 for i in 1 2 3 4; do
   curl -s "http://localhost:$LB_PORT/total?vehicleType=SUV&season=Summer&days=2" \
-    | python3 -c "import json,sys; d=json.load(sys.stdin); print('servedBy:', d['servedByInstanceId'], '| upstream:', d['upstreamInstanceId'])"
+    | python3 -c "import json,sys; d=json.load(sys.stdin)['debug']; print('servedBy:', d['servedByInstanceId'], '| upstream:', d['upstreamInstanceId'])"
 done
 ```
 
 `servedByInstanceId` (which Service A instance) and `upstreamInstanceId` (which Service B
 instance) both alternate across calls — two independent load-balancing hops, both resolved
-through etcd, both visible in one response.
+through etcd, both visible in the response's `debug` object.
 
 ## 2. Kill a Service B instance — service discovery + fault detection
 
@@ -38,7 +38,7 @@ docker exec assignment_2-etcd-1 etcdctl get /services/service-vehicle-season-pri
 
 for i in 1 2 3; do
   curl -s "http://localhost:$LB_PORT/total?vehicleType=SUV&season=Summer&days=2" \
-    | python3 -c "import json,sys; print(json.load(sys.stdin)['upstreamInstanceId'])"
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['debug']['upstreamInstanceId'])"
 done
 # every response now comes from season-price-2
 
