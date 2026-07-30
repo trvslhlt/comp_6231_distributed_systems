@@ -86,7 +86,7 @@ and (optionally) Postgres failover via Patroni — see [docs/DESIGN.md](docs/DES
 - [docs/API.md](docs/API.md) — endpoints, example requests/responses
 - [docs/SETUP.md](docs/SETUP.md) — running locally, via docker-compose, and on Kubernetes
 - [docs/DESIGN.md](docs/DESIGN.md) — design decisions and assumptions
-- [docs/DEMO.md](docs/DEMO.md) — fault-injection walkthrough for the presentation
+- [demo/](demo/) — runnable fault-injection scripts for the presentation
 
 ## Quickest path to a running system
 

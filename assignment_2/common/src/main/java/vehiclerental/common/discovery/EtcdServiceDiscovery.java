@@ -23,9 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static vehiclerental.common.EtcdKeys.servicePrefix;
 
 /**
- * Watches /services/{serviceName}/ in etcd and keeps an in-memory, round-robin-able view of
- * the currently registered instances. Entries disappear automatically when a registrant's
- * lease expires (see {@link EtcdServiceRegistry}) — there is no separate polling health check.
+ * Watches service keys in etcd and keeps an in-memory view of the current instances.
+ * Entries disappear automatically when a lease expires (no polling health checks).
  */
 public class EtcdServiceDiscovery implements AutoCloseable {
 

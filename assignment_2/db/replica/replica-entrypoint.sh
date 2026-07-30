@@ -1,9 +1,9 @@
 #!/bin/sh
-# Custom entrypoint for a Postgres streaming-replication read replica, using only the vanilla
-# postgres image (no Patroni/Bitnami). On first start (empty PGDATA) it clones the primary via
-# pg_basebackup with -R, which writes standby.signal + primary_conninfo for us; the normal
-# postgres entrypoint then starts it in hot-standby mode. On restart, PGDATA is already
-# populated, so this just hands off to the normal entrypoint directly.
+# Custom entrypoint for a Postgres streaming-replication read replica. On first start 
+# (empty PGDATA) it clones the primary via pg_basebackup with -R, which writes 
+# standby.signal + primary_conninfo for us; the normal postgres entrypoint then starts 
+# it in hot-standby mode. On restart, PGDATA is already populated, so this just hands 
+# off to the normal entrypoint directly.
 set -e
 
 if [ -z "$(ls -A "$PGDATA" 2>/dev/null)" ]; then

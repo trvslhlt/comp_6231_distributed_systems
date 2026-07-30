@@ -31,11 +31,8 @@ import static vehiclerental.common.EtcdKeys.electionPrefix;
  * Fair (FIFO) leader election over etcd: every candidate creates its own key, under its own TTL
  * lease, beneath a shared prefix. Whichever key has the lowest creation revision is the leader.
  * A candidate that isn't first watches only the single key immediately ahead of it in revision
- * order — not the whole prefix — so when the leader's lease expires (process death, network
- * partition), exactly one waiting candidate wakes up and re-checks its position, rather than
- * every candidate racing at once. That race (a "thundering herd") is what a single shared mutex
- * key would produce under many candidates; this queue-based scheme avoids it and is etcd's
- * standard recipe for elections with more than a couple of participants.
+ * order — not the whole prefix — so when the leader's lease expires exactly one waiting candidate 
+ * wakes up and re-checks its position, rather than every candidate racing at once.
  */
 public class EtcdLeaderElection implements AutoCloseable {
 

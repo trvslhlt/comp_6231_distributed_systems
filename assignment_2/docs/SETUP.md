@@ -65,7 +65,7 @@ Service A instances directly), `55432` (Postgres primary, for `psql`), `2379` (e
 
 Tear down: `docker compose down` (add `-v` to also drop the Postgres/etcd data volumes).
 
-See [DEMO.md](DEMO.md) for fault-injection exercises to run against this stack.
+See [../demo/](../demo/) for runnable fault-injection scripts against this stack.
 
 ## Option 3 — Kubernetes
 

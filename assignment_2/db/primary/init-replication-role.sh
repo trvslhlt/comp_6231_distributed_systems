@@ -1,6 +1,5 @@
 #!/bin/sh
-# Runs once, on first startup of an empty data directory (standard postgres image behavior
-# for anything mounted under /docker-entrypoint-initdb.d/). Creates the replication role the
+# Runs once, on first startup of an empty data directory. Creates the replication role the
 # read replicas connect as, and opens pg_hba.conf to replication connections from the rest of
 # the docker/k8s network.
 set -e

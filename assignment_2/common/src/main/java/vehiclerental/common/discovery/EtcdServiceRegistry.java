@@ -17,10 +17,8 @@ import java.util.concurrent.TimeUnit;
 import static vehiclerental.common.EtcdKeys.serviceInstanceKey;
 
 /**
- * Registers this process under /services/{serviceName}/{instanceId} in etcd, backed by a
- * TTL lease that is kept alive on a heartbeat. If the process dies, the lease expires and
- * etcd deletes the key on its own — that expiry is what {@link EtcdServiceDiscovery} watches
- * for, so no separate health-check protocol is needed.
+ * Registers a process in etcd, backed by a. If the process dies, the lease expires and
+ * etcd deletes the key automatically (no health-check protocol needed).
  */
 public class EtcdServiceRegistry implements AutoCloseable {
 
@@ -64,7 +62,7 @@ public class EtcdServiceRegistry implements AutoCloseable {
 
                 @Override
                 public void onCompleted() {
-                    // stream closed, typically because close() below was called
+                    log.debug("Lease {} keep-alive stream closed for {}", leaseId, self.instanceId());
                 }
             });
 

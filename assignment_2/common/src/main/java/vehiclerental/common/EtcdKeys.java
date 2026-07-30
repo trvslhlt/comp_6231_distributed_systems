@@ -1,10 +1,9 @@
 package vehiclerental.common;
 
-/** Central place for the etcd key layout so every module agrees on it. */
+/** Definition of etcd keys used in the system.. */
 public final class EtcdKeys {
 
-    private EtcdKeys() {
-    }
+    private EtcdKeys() {}
 
     public static String servicePrefix(String serviceName) {
         return "/services/" + serviceName + "/";

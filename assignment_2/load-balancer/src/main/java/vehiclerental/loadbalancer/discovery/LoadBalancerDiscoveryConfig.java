@@ -13,5 +13,4 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnProperty(name = "vehicle-rental.etcd.enabled", havingValue = "true")
 @LoadBalancerClient(name = TotalPriceLoadBalancerConfiguration.SERVICE_ID, configuration = TotalPriceLoadBalancerConfiguration.class)
-public class LoadBalancerDiscoveryConfig {
-}
+public class LoadBalancerDiscoveryConfig {}

@@ -3,7 +3,10 @@
 All responses are JSON. Errors follow the same shape everywhere:
 
 ```json
-{ "error": "not_found", "message": "No price found for vehicleType='Spaceship' season='Summer'" }
+{ 
+  "error": "not_found", 
+  "message": "No price found for vehicleType='Spaceship' season='Summer'"
+}
 ```
 
 `error` is one of `not_found` (HTTP 404) or `bad_request` (HTTP 400).

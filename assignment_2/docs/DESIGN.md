@@ -44,7 +44,7 @@ configured as a **separate** connection (`spring.flyway.*`) that always targets 
 since replicas are read-only and can't run migrations.
 
 **Baseline fault tolerance** is manual promotion (`pg_promote()` or `pg_ctl promote`), exercised
-in [DEMO.md](DEMO.md). **Stretch, not implemented**: swap in Patroni using the same etcd cluster
+in [../demo/](../demo/). **Stretch, not implemented**: swap in Patroni using the same etcd cluster
 as its DCS, for automatic failover — this would fold Postgres HA into the same coordination
 mechanism as everything else rather than bolting on a second, unrelated one.
 

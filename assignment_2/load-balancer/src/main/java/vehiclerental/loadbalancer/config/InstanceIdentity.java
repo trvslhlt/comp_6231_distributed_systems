@@ -9,8 +9,10 @@ public class InstanceIdentity {
     private final String instanceId;
     private final int port;
 
-    public InstanceIdentity(@Value("${vehicle-rental.instance-id}") String instanceId,
-                             @Value("${server.port}") int port) {
+    public InstanceIdentity(
+        @Value("${vehicle-rental.instance-id}") String instanceId,
+        @Value("${server.port}") int port
+    ) {
         this.instanceId = instanceId;
         this.port = port;
     }
