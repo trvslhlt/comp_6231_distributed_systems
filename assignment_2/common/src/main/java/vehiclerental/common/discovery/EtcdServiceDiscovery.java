@@ -43,6 +43,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
         this.serviceName = serviceName;
     }
 
+    /** Starts watching etcd for changes to the service's instances. */
     public void start() {
         ByteSequence prefix = ByteSequence.from(servicePrefix(serviceName), StandardCharsets.UTF_8);
         try {
@@ -79,6 +80,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
         log.info("Watching {} for {} instances (starting with {})", servicePrefix(serviceName), serviceName, instances.size());
     }
 
+    /** Adds or updates an instance in the in-memory view. */
     private void upsert(KeyValue kv) {
         try {
             ServiceInstance instance = mapper.readValue(kv.getValue().toString(StandardCharsets.UTF_8), ServiceInstance.class);
@@ -89,6 +91,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
         }
     }
 
+    /** Removes an instance from the in-memory view. */
     private void remove(KeyValue kv) {
         String key = kv.getKey().toString(StandardCharsets.UTF_8);
         String instanceId = key.substring(key.lastIndexOf('/') + 1);
@@ -98,6 +101,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
         }
     }
 
+    /** Returns a snapshot of the current instances. */
     public List<ServiceInstance> currentInstances() {
         return new ArrayList<>(instances.values());
     }
@@ -112,6 +116,7 @@ public class EtcdServiceDiscovery implements AutoCloseable {
         return Optional.of(snapshot.get(index));
     }
 
+    /** Closes the watcher and stops watching for changes. */
     @Override
     public void close() {
         if (watcher != null) {

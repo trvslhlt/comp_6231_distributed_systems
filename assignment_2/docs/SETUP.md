@@ -56,6 +56,19 @@ to regenerate `target/classes`:
 - **From the command line**: run `mvn compile` in a second terminal after editing a file; the
   running `spring-boot:run` process picks up the change and restarts on its own.
 
+### Running the tests
+
+```bash
+mvn test                                          # unit test suite across all four modules
+mvn test -pl service-vehicle-season-price -am     # just one module (and its dependencies)
+```
+
+Plain unit tests, no etcd/Postgres/Kubernetes needed — they cover business logic (price/total
+validation and calculation, exception-to-HTTP mapping, the load balancer's active-passive
+guard). The etcd/Kubernetes integration classes (leader election, service discovery, pod
+labeling) aren't unit-tested; that logic was instead validated by actually running the system —
+see [../demo/](../demo/) and [DESIGN.md](DESIGN.md).
+
 ## docker-compose
 
 Brings up: 1 etcd node, 1 Postgres primary + 2 read replicas, 2 Service B instances (one per

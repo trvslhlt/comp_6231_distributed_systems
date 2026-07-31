@@ -17,8 +17,7 @@ import java.util.concurrent.TimeUnit;
 import static vehiclerental.common.EtcdKeys.serviceInstanceKey;
 
 /**
- * Registers a process in etcd, backed by a. If the process dies, the lease expires and
- * etcd deletes the key automatically (no health-check protocol needed).
+ * Registers a process in etcd. If the process dies, the lease expires and
  */
 public class EtcdServiceRegistry implements AutoCloseable {
 
@@ -39,6 +38,7 @@ public class EtcdServiceRegistry implements AutoCloseable {
         this.ttlSeconds = ttlSeconds;
     }
 
+    /** Registers the service instance in etcd and starts a keep-alive for the lease. */
     public void start() {
         try {
             LeaseGrantResponse lease = client.getLeaseClient().grant(ttlSeconds).get();
@@ -72,6 +72,7 @@ public class EtcdServiceRegistry implements AutoCloseable {
         }
     }
 
+    /** Deregisters the service instance and closes the keep-alive. */
     @Override
     public void close() {
         if (keepAlive != null) {

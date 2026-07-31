@@ -28,11 +28,7 @@ import static vehiclerental.common.EtcdKeys.electionCandidateKey;
 import static vehiclerental.common.EtcdKeys.electionPrefix;
 
 /**
- * Fair (FIFO) leader election over etcd: every candidate creates its own key, under its own TTL
- * lease, beneath a shared prefix. Whichever key has the lowest creation revision is the leader.
- * A candidate that isn't first watches only the single key immediately ahead of it in revision
- * order — not the whole prefix — so when the leader's lease expires exactly one waiting candidate 
- * wakes up and re-checks its position, rather than every candidate racing at once.
+ * Fair/FIFO leader election over etcd.
  */
 public class EtcdLeaderElection implements AutoCloseable {
 
@@ -77,11 +73,18 @@ public class EtcdLeaderElection implements AutoCloseable {
         });
     }
 
+    /**
+     * Starts the election campaign in a background thread. The caller should call {@link #close()} to stop
+     * the campaign when it's no longer needed.
+     */
     public void start() {
         running = true;
         executor.submit(this::campaignLoop);
     }
 
+    /**
+     * Repeatedly attempts to run a single election term, sleeping and retrying on failure.
+     */
     private void campaignLoop() {
         while (running) {
             try {
