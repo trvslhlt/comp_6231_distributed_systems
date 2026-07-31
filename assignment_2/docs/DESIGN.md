@@ -53,7 +53,7 @@ active-passive routing (in-process guard everywhere, pod-label routing only in K
   live via repeated failovers: Patroni's own `/history` endpoint confirmed genuine timeline
   switches (not stale relabeling), and a fresh `CREATE TABLE`/`DROP TABLE` against
   `postgres-primary` succeeded immediately after each one with zero manual intervention — see
-  [../demo/kind/04-kill-postgres-primary.sh](../demo/kind/04-kill-postgres-primary.sh).
+  [../demo/kind/05-kill-postgres-primary.sh](../demo/kind/05-kill-postgres-primary.sh).
 
 In both environments, all runtime query traffic is reads, so Service B's `spring.datasource.*`
 points at a replica (the `postgres-replica` Kubernetes Service load-balances across both;

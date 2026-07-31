@@ -15,11 +15,13 @@ mvn -N install    # installs the parent POM so modules resolve it without a reac
 mvn install -DskipTests
 ```
 
-## Option 1 — Single instance, no etcd (fastest path to verifying the core requirement)
+## API development (fastest path to iterating on business logic)
 
 Only Postgres is needed. This mode is what `vehicle-rental.etcd.enabled=false` (the default)
 gives you: Service A talks to one fixed Service B URL, and the load balancer forwards to one
-fixed Service A URL — no etcd, no load-balanced discovery, no active-passive election.
+fixed Service A URL — no etcd, no load-balanced discovery, no active-passive election. Use this
+for iterating on pricing logic, the total calculation, or DTO shapes; switch to docker-compose or
+Kubernetes only when you actually need to exercise the distributed-systems behavior.
 
 ```bash
 docker run -d --name postgres -p 5432:5432 \
@@ -41,7 +43,20 @@ curl "http://localhost:8080/total?vehicleType=SUV&season=Winter&days=10"   # Ser
 curl "http://localhost:8090/total?vehicleType=SUV&season=Winter&days=10"   # through the LB
 ```
 
-## Option 2 — Full stack via docker-compose (recommended for seeing the distributed features)
+### Hot reload
+
+All three services carry `spring-boot-devtools` (excluded from the packaged JAR automatically,
+so it has no effect outside `spring-boot:run`). It watches `target/classes` and triggers a fast
+in-JVM restart — a few seconds, not a full cold start — whenever the compiled `.class` files
+change underneath it. `spring-boot:run` itself doesn't recompile on save, so something else has
+to regenerate `target/classes`:
+
+- **From an IDE** (IntelliJ, Eclipse, VS Code): enable "build automatically" / "compile on save"
+  and this just works — every save triggers a restart.
+- **From the command line**: run `mvn compile` in a second terminal after editing a file; the
+  running `spring-boot:run` process picks up the change and restarts on its own.
+
+## docker-compose
 
 Brings up: 1 etcd node, 1 Postgres primary + 2 read replicas, 2 Service B instances (one per
 replica), 2 Service A instances, 2 load-balancer instances (active-passive).
@@ -67,7 +82,7 @@ Tear down: `docker compose down` (add `-v` to also drop the Postgres/etcd data v
 
 See [../demo/](../demo/) for runnable fault-injection scripts against this stack.
 
-## Option 3 — Kubernetes
+## Kubernetes / kind
 
 Manifests are in `k8s/`, applied in filename order (`00-` through `50-`). This is the resource
 topology they create — a different concern from the request-flow diagram in the root

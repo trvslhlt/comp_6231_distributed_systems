@@ -32,4 +32,4 @@ echo "Waiting for every remaining pod to reach Ready (Service A/B pods may resta
 echo "first, since nothing gates their startup on Postgres being ready yet)..."
 kubectl -n vehicle-rental wait --for=condition=Ready pods --all --timeout=300s
 
-echo "All pods Ready. Next: run ./port-forward.sh in its own terminal, then the numbered scripts."
+echo "All pods Ready. Next: run ./01-port-forward.sh in its own terminal, then the numbered scripts."
