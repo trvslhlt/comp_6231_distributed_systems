@@ -8,11 +8,8 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 
 /**
- * Patches this pod's own "role" label so a Kubernetes Service selecting role=active only ever
- * routes to the current leader — plain round-robin across a Deployment's pods (what a normal
- * Service does) is not active-passive. Reads its own pod identity from the Downward API
- * (POD_NAME / POD_NAMESPACE env vars, wired up in the load-balancer Deployment manifest).
- * Outside Kubernetes (e.g. docker-compose / local dev) this is a no-op.
+ * Patches a pod's own "role" label so a Kubernetes Service selecting role=active only ever
+ * routes to the current leader.
  */
 public class PodRoleLabeler implements AutoCloseable {
 

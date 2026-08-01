@@ -97,8 +97,8 @@ public class EtcdLeaderElection implements AutoCloseable {
     }
 
     /**
-     * Registers this candidate's own key, then either leads (if it's first in line) or waits in
-     * line, holding leadership (if won) until the lease is lost.
+     * Registers this candidate's own key, then either leads or waits in
+     * line, holding leadership until the lease is lost.
      */
     private void runOneTerm() throws Exception {
         long leaseId = client.getLeaseClient().grant(ttlSeconds).get().getID();
@@ -156,8 +156,11 @@ public class EtcdLeaderElection implements AutoCloseable {
      * Otherwise, watches only the one key directly ahead of it and re-checks position once that
      * key disappears.
      */
-    private void waitInLineThenHoldLeadership(AtomicBoolean leaseLost, AtomicBoolean elected, AtomicReference<CountDownLatch> currentWait)
-            throws Exception {
+    private void waitInLineThenHoldLeadership(
+        AtomicBoolean leaseLost, 
+        AtomicBoolean elected, 
+        AtomicReference<CountDownLatch> currentWait
+    ) throws Exception {
         while (running && !leaseLost.get()) {
             List<KeyValue> candidates = client.getKVClient().get(prefixBytes, GetOption.builder()
                     .isPrefix(true)
