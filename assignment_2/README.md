@@ -1,21 +1,13 @@
 # Vehicle Rental Price Calculation System
 
-Implements the assignment's two required microservices — **Vehicle Season Price** and
-**Vehicle Total Price** — using the JSON pricing dataset provided in `assignment/`. Beyond the
-base requirement, this project explores the distributed-systems themes of the course as
-"additional features": each service runs as N instances, Postgres is set up with streaming
-replication for fault tolerance, an active-passive Layer 7 load balancer fronts the client-facing
-service, etcd provides service discovery and leader election, and the whole system is deployable
+Implements the assignment's two required microservices — **Vehicle Season Price** and **Vehicle Total Price** — using the provided JSON pricing dataset. Beyond the base requirement, this project explores the distributed-systems themes of the course as "additional features": each service runs as N instances, Postgres is set up with streaming replication for fault tolerance, an active-passive Layer 7 load balancer fronts the client-facing service, etcd provides service discovery and leader election, and the whole system is deployable
 to Kubernetes.
-
-See `assignment/` for the original assignment brief and provided dataset.
 
 ## Architecture
 
 ### Request flow
 
-Solid arrows are the client request path; dotted arrows are etcd coordination (registration,
-discovery, leader election) — a separate concern from the request path itself.
+Solid arrows are the client request path; dotted arrows are etcd coordination (registration, discovery, leader election) — a separate concern from the request path itself.
 
 ```mermaid
 flowchart LR
@@ -70,16 +62,11 @@ flowchart LR
     class lbP passive
 ```
 
-etcd (a 3-node Raft cluster in Kubernetes; a single node in the docker-compose dev stack) is the
-coordination backbone underneath service discovery and load-balancer leader election everywhere,
-plus Postgres failover via Patroni in the Kubernetes deployment specifically (docker-compose's
-Postgres setup only supports manual promotion) — see [docs/DESIGN.md](docs/DESIGN.md).
+etcd (a 3-node Raft cluster in Kubernetes; a single node in the docker-compose dev stack) is the coordination backbone underneath service discovery and load-balancer leader election everywhere, plus Postgres failover via Patroni in the Kubernetes deployment specifically (docker-compose's Postgres setup only supports manual promotion) — see [docs/DESIGN.md](docs/DESIGN.md).
 
 ### Kubernetes resource topology
 
-A different concern from the request-flow diagram above: this shows how each piece is packaged
-and wired up inside the cluster (Kubernetes deployment only — see [docs/SETUP.md](docs/SETUP.md)
-for docker-compose).
+A different concern from the request-flow diagram above: this shows how each piece is packaged and wired up inside the cluster (Kubernetes deployment only — see [docs/SETUP.md](docs/SETUP.md) for docker-compose).
 
 ```mermaid
 flowchart TB
@@ -141,26 +128,14 @@ flowchart TB
 
 | Module | Role |
 |---|---|
-| `common` | Shared DTOs, etcd-backed service registry/discovery ([jetcd](https://github.com/etcd-io/jetcd)), leader election, and Kubernetes pod-labeling helper ([fabric8](https://github.com/fabric8io/kubernetes-client)) |
-| `service-vehicle-season-price` | Service B: looks up the daily rate for a vehicle type + season from Postgres |
-| `service-vehicle-total-price` | Service A: calls Service B and multiplies by a rental period |
-| `load-balancer` | Active-passive Spring Cloud Gateway in front of Service A |
+| `common` | Shared components |
+| `service-vehicle-season-price` | API service: reads pricing data from Postgres |
+| `service-vehicle-total-price` | API service: fetches data from season price API and computes total |
+| `load-balancer` | Active-passive Spring Cloud Gateway in front of total price API |
 
 ## Documentation
 
 - [docs/API.md](docs/API.md) — endpoints, example requests/responses
-- [docs/SETUP.md](docs/SETUP.md) — running locally, via docker-compose, and on Kubernetes
+- [docs/SETUP.md](docs/SETUP.md) — how to run the project locally
 - [docs/DESIGN.md](docs/DESIGN.md) — design decisions and assumptions
 - [demo/](demo/) — runnable fault-injection scripts for the presentation
-
-## Quickest path to a running system
-
-```bash
-docker compose up --build -d
-curl "http://localhost:8090/total?vehicleType=SUV&season=Winter&days=10"
-# if that returns 503, the other load-balancer replica is the active one:
-curl "http://localhost:8091/total?vehicleType=SUV&season=Winter&days=10"
-```
-
-Full instructions, including single-instance local dev and Kubernetes, are in
-[docs/SETUP.md](docs/SETUP.md).
