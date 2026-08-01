@@ -16,7 +16,9 @@ public class GatewayRoutesConfig {
     public RouteLocator fixedRoutes(RouteLocatorBuilder builder,
                                      @Value("${vehicle-rental.total-price-service.base-url}") String baseUrl) {
         return builder.routes()
-                .route("vehicle-total-price", r -> r.path("/**").uri(baseUrl))
+                .route(
+                    "vehicle-total-price", 
+                    r -> r.path("/**").uri(baseUrl))
                 .build();
     }
 
@@ -24,8 +26,12 @@ public class GatewayRoutesConfig {
     @Bean
     @ConditionalOnProperty(name = "vehicle-rental.etcd.enabled", havingValue = "true")
     public RouteLocator loadBalancedRoutes(RouteLocatorBuilder builder) {
+        // The "lb://" prefix tells Spring Cloud Gateway to use the load balancer to resolve the 
+        // service name to an actual instance.
         return builder.routes()
-                .route("vehicle-total-price", r -> r.path("/**").uri("lb://service-vehicle-total-price"))
+                .route(
+                    "vehicle-total-price", 
+                    r -> r.path("/**").uri("lb://service-vehicle-total-price"))
                 .build();
     }
 }

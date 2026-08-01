@@ -9,20 +9,16 @@ All responses are JSON. Errors follow the same shape everywhere:
 }
 ```
 
-`error` is one of `not_found` (HTTP 404) or `bad_request` (HTTP 400).
-
-## Service B — Vehicle Season Price
-
-Default port `8081`. Reachable directly, or indirectly through Service A.
+## Vehicle Season Price
 
 ### `GET /price`
 
 Retrieves the daily rental price of a vehicle type for a season.
 
-| Param | Required | Notes |
-|---|---|---|
-| `vehicleType` | yes | Case-insensitive, e.g. `SUV`, `suv` |
-| `season` | yes | Case-insensitive, one of `spring`, `summer`, `fall`, `winter` |
+| Param         | Required | Type | Notes |
+|---            |---|---|---|
+| `vehicleType` | yes | string | {`Compact`, `Sedan`, `SUV`, `Convertible`, `Truck`} |
+| `season`      | yes | string | {`spring`, `summer`, `fall`, `winter`} |
 
 **Example**
 
@@ -44,26 +40,19 @@ GET /price?vehicleType=SUV&season=Summer
 }
 ```
 
-`data` is the client-relevant answer. `debug` identifies which of the N Service B instances
-handled the request — useful for observing load balancing across instances, not part of the API
-contract clients should depend on.
+`data` is the client-relevant answer. `debug` identifies which of the service instances handled the request. This is useful for observing load balancing across instances, not part of the API contract.
 
-Errors: `404 not_found` if the vehicle type or season combination doesn't exist; `400 bad_request`
-if `season` isn't one of the four valid values.
-
-## Service A — Vehicle Total Price
-
-Default port `8080`. This is also what the load balancer proxies to.
+## Vehicle Total Price
 
 ### `GET /total`
 
-Calls Service B for the daily rate, then multiplies by a rental period.
+Calls `Vehicle Season Price` for the daily rate, then multiplies by a rental period.
 
-| Param | Required | Notes |
-|---|---|---|
-| `vehicleType` | yes | Forwarded to Service B as-is |
-| `season` | yes | Forwarded to Service B as-is |
-| `days` | yes | Integer, must be >= 1 |
+| Param         | Required | Type | Notes |
+|---            |---|---|---|
+| `vehicleType` | yes | string | unvalidated {`Compact`, `Sedan`, `SUV`, `Convertible`, `Truck`} |
+| `season`      | yes | string | unvalidated {`spring`, `summer`, `fall`, `winter`} |
+| `days`        | yes | integer | Must be >= 1 |
 
 **Example**
 
@@ -88,17 +77,9 @@ GET /total?vehicleType=SUV&season=Winter&days=10
 }
 ```
 
-`data` is the client-relevant answer. In `debug`, `servedByInstanceId` identifies the Service A
-instance and `upstreamInstanceId` identifies which Service B instance it called — together these
-show both load-balancing hops in one response.
-
-Errors: `400 bad_request` if `days < 1`; otherwise errors from Service B are passed through
-(`404 not_found` for an unknown vehicle type/season, `400 bad_request` for an invalid season).
+Errors: `400 bad_request` if `days < 1`.
 
 ## Load Balancer
-
-Default port `8090` (each docker-compose instance is also mapped to its own host port — see
-[SETUP.md](SETUP.md)). Proxies every path through to Service A's `/total` endpoint.
 
 - On the current leader: behaves exactly like calling Service A's `/total` directly.
 - On the non-leader (passive) instance: any request returns `503 Service Unavailable` with an

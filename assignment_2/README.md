@@ -12,6 +12,8 @@ See `assignment/` for the original assignment brief and provided dataset.
 
 ## Architecture
 
+### Request flow
+
 Solid arrows are the client request path; dotted arrows are etcd coordination (registration,
 discovery, leader election) — a separate concern from the request path itself.
 
@@ -72,6 +74,68 @@ etcd (a 3-node Raft cluster in Kubernetes; a single node in the docker-compose d
 coordination backbone underneath service discovery and load-balancer leader election everywhere,
 plus Postgres failover via Patroni in the Kubernetes deployment specifically (docker-compose's
 Postgres setup only supports manual promotion) — see [docs/DESIGN.md](docs/DESIGN.md).
+
+### Kubernetes resource topology
+
+A different concern from the request-flow diagram above: this shows how each piece is packaged
+and wired up inside the cluster (Kubernetes deployment only — see [docs/SETUP.md](docs/SETUP.md)
+for docker-compose).
+
+```mermaid
+flowchart TB
+    external([External client])
+
+    subgraph NS["Namespace: vehicle-rental"]
+        subgraph LBK["Load Balancer"]
+            lbSvc["Service<br/>type: LoadBalancer<br/>selector: role=active"]
+            lbPods["Deployment: load-balancer<br/>replicas: 2"]
+            lbRBAC["ServiceAccount + Role<br/>(patch own pod's role label)"]
+        end
+
+        subgraph SAK["Service A"]
+            aSvc["Service"]
+            aPods["Deployment<br/>replicas: N"]
+        end
+
+        subgraph SBK["Service B"]
+            bSvc["Service"]
+            bPods["Deployment<br/>replicas: N"]
+        end
+
+        subgraph PGK["Postgres (Patroni)"]
+            pgPrimarySvc["Service: postgres-primary<br/>selector: role=primary"]
+            pgReplicaSvc["Service: postgres-replica<br/>selector: role=replica"]
+            pgPods["StatefulSet: postgres<br/>replicas: 3 (symmetric —<br/>Patroni elects the primary)"]
+            pgRBAC["ServiceAccount + Role<br/>(patch own pod's role label)"]
+        end
+
+        subgraph ETCDK["etcd"]
+            etcdSvc["Service (headless)"]
+            etcdPods["StatefulSet<br/>replicas: 3"]
+        end
+    end
+
+    external --> lbSvc
+    lbSvc --> lbPods
+    lbPods --- lbRBAC
+    lbPods -.->|pod IP via etcd, not aSvc| aPods
+    aSvc --- aPods
+    aPods -.->|pod IP via etcd, not bSvc| bPods
+    bSvc --- bPods
+    bPods --> pgReplicaSvc
+    pgReplicaSvc --> pgPods
+    bPods -.->|Flyway migrations only| pgPrimarySvc
+    pgPrimarySvc --> pgPods
+    pgPods --- pgRBAC
+    pgPods -.->|leader election| etcdSvc
+    lbPods -.->|leader election| etcdSvc
+    aPods -.->|discovery| etcdSvc
+    bPods -.->|registration| etcdSvc
+    etcdSvc --> etcdPods
+
+    classDef hotpath fill:#3498db,stroke:#1f5f8b,color:#eef6fc;
+    class lbSvc,pgPrimarySvc,pgReplicaSvc,etcdSvc hotpath
+```
 
 ## Modules
 

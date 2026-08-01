@@ -22,7 +22,11 @@ public class TotalPriceController {
     }
 
     @GetMapping("/total")
-    public TotalPriceResponse getTotal(@RequestParam String vehicleType, @RequestParam String season, @RequestParam int days) {
+    public TotalPriceResponse getTotal(
+        @RequestParam String vehicleType, 
+        @RequestParam String season, 
+        @RequestParam int days
+    ) {
         if (days < 1) {
             throw new InvalidDaysException(days);
         }
