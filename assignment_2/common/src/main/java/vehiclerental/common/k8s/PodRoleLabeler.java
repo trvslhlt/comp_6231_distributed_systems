@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 
 /**
- * Patches a pod's own "role" label so a Kubernetes Service selecting role=active only ever
+ * Patches a pod's own "role" label so a k8s service selecting 'role=active' only ever
  * routes to the current leader.
  */
 public class PodRoleLabeler implements AutoCloseable {

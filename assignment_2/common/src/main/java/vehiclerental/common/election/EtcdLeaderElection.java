@@ -28,7 +28,7 @@ import static vehiclerental.common.EtcdKeys.electionCandidateKey;
 import static vehiclerental.common.EtcdKeys.electionPrefix;
 
 /**
- * Fair/FIFO leader election over etcd.
+ * FIFO leader election over etcd.
  */
 public class EtcdLeaderElection implements AutoCloseable {
 
@@ -74,8 +74,7 @@ public class EtcdLeaderElection implements AutoCloseable {
     }
 
     /**
-     * Starts the election campaign in a background thread. The caller should call {@link #close()} to stop
-     * the campaign when it's no longer needed.
+     * Starts the election campaign in a background thread. Call {@link #close()} to stop the campaign.
      */
     public void start() {
         running = true;
@@ -97,8 +96,7 @@ public class EtcdLeaderElection implements AutoCloseable {
     }
 
     /**
-     * Registers this candidate's own key, then either leads or waits in
-     * line, holding leadership until the lease is lost.
+     * Registers this candidate key, then leads or waits in line, holding leadership until the lease is lost.
      */
     private void runOneTerm() throws Exception {
         long leaseId = client.getLeaseClient().grant(ttlSeconds).get().getID();
@@ -107,12 +105,12 @@ public class EtcdLeaderElection implements AutoCloseable {
         AtomicBoolean leaseLost = new AtomicBoolean(false);
         // Points at whichever latch the campaign thread is currently blocked on, so the
         // keep-alive callback (running on a gRPC thread) can wake it up immediately on failure
-        // instead of only being noticed on the next poll.
+        // instead of notifing on the next poll.
         AtomicReference<CountDownLatch> currentWait = new AtomicReference<>();
         CloseableClient keepAlive = client.getLeaseClient().keepAlive(leaseId, new StreamObserver<>() {
             @Override
             public void onNext(LeaseKeepAliveResponse value) {
-                // lease renewed, still holding our place (or leadership)
+                // lease renewed, no change
             }
 
             @Override
@@ -135,9 +133,6 @@ public class EtcdLeaderElection implements AutoCloseable {
             }
         });
 
-        // Set the instant onElected() fires (not derived from waitInLineThenHoldLeadership's
-        // return value) so a close()-triggered interrupt during holdLeadershipUntilLost still
-        // results in onDemoted() being called from the finally block below.
         AtomicBoolean elected = new AtomicBoolean(false);
         try {
             waitInLineThenHoldLeadership(leaseLost, elected, currentWait);

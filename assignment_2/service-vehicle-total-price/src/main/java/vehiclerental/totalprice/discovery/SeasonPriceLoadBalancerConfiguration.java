@@ -4,6 +4,7 @@ import io.etcd.jetcd.Client;
 import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
 import org.springframework.context.annotation.Bean;
 import vehiclerental.common.discovery.EtcdServiceDiscovery;
+import vehiclerental.common.discovery.EtcdServiceInstanceListSupplier;
 
 /**
  * Per Spring Cloud LoadBalancer convention, classes referenced via
