@@ -9,6 +9,8 @@ Beyond the base requirement, this project explores distributed-systems course th
 - etcd provides service discovery and leader election
 - The whole system is deployable to Kubernetes
 
+Jump to [docs/SETUP.md](./docs/SETUP.md) or run the [demo](./demo/) scripts to get started.
+
 ## Architecture
 
 ### Request flow
