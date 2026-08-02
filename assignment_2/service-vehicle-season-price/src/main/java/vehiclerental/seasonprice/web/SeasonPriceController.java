@@ -13,7 +13,12 @@ import java.util.Set;
 @RestController
 public class SeasonPriceController {
 
-    private static final Set<String> VALID_SEASONS = Set.of("spring", "summer", "fall", "winter");
+    private static final Set<String> VALID_SEASONS = Set.of(
+        "spring", 
+        "summer", 
+        "fall", 
+        "winter"
+    );
 
     private final PriceRepository priceRepository;
     private final InstanceIdentity instanceIdentity;
@@ -23,6 +28,13 @@ public class SeasonPriceController {
         this.instanceIdentity = instanceIdentity;
     }
 
+    /**
+     * Retrieves the price for a given vehicle type and season.
+     *
+     * @param vehicleType the type of the vehicle
+     * @param season the season for which to retrieve the price
+     * @return the season price response
+     */
     @GetMapping("/price")
     public SeasonPriceResponse getPrice(@RequestParam String vehicleType, @RequestParam String season) {
         String normalizedSeason = season.trim().toLowerCase();

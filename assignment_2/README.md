@@ -1,13 +1,19 @@
 # Vehicle Rental Price Calculation System
 
-Implements the assignment's two required microservices — **Vehicle Season Price** and **Vehicle Total Price** — using the provided JSON pricing dataset. Beyond the base requirement, this project explores the distributed-systems themes of the course as "additional features": each service runs as N instances, Postgres is set up with streaming replication for fault tolerance, an active-passive Layer 7 load balancer fronts the client-facing service, etcd provides service discovery and leader election, and the whole system is deployable
-to Kubernetes.
+Implements the two required microservices: **Vehicle Season Price** and **Vehicle Total Price**. 
+
+Beyond the base requirement, this project explores distributed-systems course themes as "additional features". All architectural decisions are my own, while **not required** features were coded with the help of Claude:
+- Each service runs as N instances
+- Postgres is set up with streaming replication for fault tolerance
+- The application is fronted by an active-passive Layer 7 load balancer
+- etcd provides service discovery and leader election
+- The whole system is deployable to Kubernetes
 
 ## Architecture
 
 ### Request flow
 
-Solid arrows are the client request path; dotted arrows are etcd coordination (registration, discovery, leader election) — a separate concern from the request path itself.
+Solid arrows are the client request path; dotted arrows are etcd coordination.
 
 ```mermaid
 flowchart LR
@@ -62,11 +68,11 @@ flowchart LR
     class lbP passive
 ```
 
-etcd (a 3-node Raft cluster in Kubernetes; a single node in the docker-compose dev stack) is the coordination backbone underneath service discovery and load-balancer leader election everywhere, plus Postgres failover via Patroni in the Kubernetes deployment specifically (docker-compose's Postgres setup only supports manual promotion) — see [docs/DESIGN.md](docs/DESIGN.md).
+etcd (3-node cluster in k8s; a single node in the docker-compose stack) is the coordination technology backing service discovery and leader election everywhere, including Postgres failover via Patroni in the Kubernetes deployment (docker-compose's Postgres setup only supports manual promotion).
 
 ### Kubernetes resource topology
 
-A different concern from the request-flow diagram above: this shows how each piece is packaged and wired up inside the cluster (Kubernetes deployment only — see [docs/SETUP.md](docs/SETUP.md) for docker-compose).
+This shows how each piece is packaged and wired up inside the k8s cluster.
 
 ```mermaid
 flowchart TB
@@ -137,5 +143,4 @@ flowchart TB
 
 - [docs/API.md](docs/API.md) — endpoints, example requests/responses
 - [docs/SETUP.md](docs/SETUP.md) — how to run the project locally
-- [docs/DESIGN.md](docs/DESIGN.md) — design decisions and assumptions
 - [demo/](demo/) — runnable fault-injection scripts for the presentation

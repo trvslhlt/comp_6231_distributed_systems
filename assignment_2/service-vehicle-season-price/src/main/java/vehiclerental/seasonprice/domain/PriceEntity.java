@@ -9,10 +9,8 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
 /**
- * Maps to the "prices" table, whose "season" column is a native Postgres ENUM (see
- * V1__init_schema.sql). The JDBC URL carries "stringtype=unspecified" so the pgjdbc driver
- * sends this field's value as an untyped string and Postgres coerces it to the enum column
- * itself, instead of requiring a Hibernate-side native enum type mapping.
+ * This class maps to the "prices" table in the database and represents a price entry.
+ * It uses a composite primary key defined by the PriceId class.
  */
 @Entity
 @Table(name = "prices")
@@ -30,8 +28,7 @@ public class PriceEntity {
     @Column(name = "price_per_day")
     private BigDecimal pricePerDay;
 
-    protected PriceEntity() {
-    }
+    protected PriceEntity() {}
 
     public String getVehicleType() {
         return vehicleType;

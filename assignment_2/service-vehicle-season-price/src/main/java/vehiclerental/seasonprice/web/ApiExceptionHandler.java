@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import vehiclerental.common.dto.ErrorResponse;
 
+/**
+ * Global exception handler for the season price API.
+ */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 

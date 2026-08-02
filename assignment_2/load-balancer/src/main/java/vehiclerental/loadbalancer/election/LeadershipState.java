@@ -4,10 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Shared active/passive flag consulted by {@link vehiclerental.loadbalancer.web.LeadershipGuardFilter}.
- * In single-instance dev mode (etcd disabled) this instance is always "active" — there is no
- * one to fail over to. With etcd enabled, {@link EtcdElectionConfig} drives this from the
- * election's onElected/onDemoted callbacks.
+ * Shared active/passive flag.
+ * In single-instance dev mode this instance is always "active".
  */
 @Component
 public class LeadershipState {

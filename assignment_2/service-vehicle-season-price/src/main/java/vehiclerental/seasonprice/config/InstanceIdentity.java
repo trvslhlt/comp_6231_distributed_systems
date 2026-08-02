@@ -3,6 +3,9 @@ package vehiclerental.seasonprice.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+/**
+ * Represents the identity of this service instance. Used in service discovery.
+ */
 @Component
 public class InstanceIdentity {
 

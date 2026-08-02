@@ -3,6 +3,9 @@ package vehiclerental.totalprice.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+/**
+ * Represents the identity of this service instance.
+ */
 @Component
 public class InstanceIdentity {
 

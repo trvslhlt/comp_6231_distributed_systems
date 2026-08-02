@@ -7,7 +7,9 @@ import vehiclerental.common.dto.SeasonPriceResponse;
 import vehiclerental.totalprice.web.UpstreamBadRequestException;
 import vehiclerental.totalprice.web.UpstreamNotFoundException;
 
-/** Talks to the Vehicle Season Price service (Service B) to look up the daily rate. */
+/**
+ * Interacts with the season price API.
+ */
 @Component
 public class SeasonPriceClient {
 

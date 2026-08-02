@@ -7,10 +7,8 @@ import vehiclerental.common.discovery.EtcdServiceDiscovery;
 import vehiclerental.common.discovery.EtcdServiceInstanceListSupplier;
 
 /**
- * Per Spring Cloud LoadBalancer convention, classes referenced via
- * {@code @LoadBalancerClient(configuration = ...)} must NOT be annotated with
- * {@code @Configuration} — otherwise they would be picked up by the main application context
- * and applied globally instead of scoped to this one named client.
+ * Configures Spring Cloud LoadBalancer to resolve "http://service-vehicle-season-price"
+ * against instances of season price API discovered via etcd.
  */
 public class SeasonPriceLoadBalancerConfiguration {
 

@@ -10,10 +10,9 @@ import reactor.core.publisher.Mono;
 import vehiclerental.loadbalancer.election.LeadershipState;
 
 /**
- * Defense-in-depth for active-passive: the Kubernetes Service should only ever route to the
- * pod labeled role=active (see {@link vehiclerental.loadbalancer.election.EtcdElectionConfig}),
- * but label propagation is not instantaneous. Any request that reaches a non-leader instance
- * anyway is rejected here rather than silently proxied.
+ * k8s should only ever route to the pod labeled role=active, but label propagation 
+ * is not instantaneous. Any request that reaches a non-leader instance
+ * is rejected here rather than silently proxied (fail-closed vs. fail-open).
  */
 @Component
 public class LeadershipGuardFilter implements GlobalFilter, Ordered {

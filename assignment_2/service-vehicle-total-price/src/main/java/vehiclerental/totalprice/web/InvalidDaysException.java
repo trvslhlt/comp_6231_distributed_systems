@@ -1,5 +1,8 @@
 package vehiclerental.totalprice.web;
 
+/**
+ * Exception thrown when the number of days is invalid (less than 1).
+ */
 public class InvalidDaysException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

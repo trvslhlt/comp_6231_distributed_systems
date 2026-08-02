@@ -10,6 +10,10 @@ import vehiclerental.totalprice.config.InstanceIdentity;
 
 import java.math.BigDecimal;
 
+/**
+ * Controller for calculating the total price of renting a vehicle based on its type, season, and number of days.
+ * The data is provided by the season price API.
+ */
 @RestController
 public class TotalPriceController {
 

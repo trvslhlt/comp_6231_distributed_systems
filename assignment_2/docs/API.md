@@ -81,9 +81,9 @@ Errors: `400 bad_request` if `days < 1`.
 
 ## Load Balancer
 
-- On the current leader: behaves exactly like calling Service A's `/total` directly.
+- On the current leader: behaves exactly like calling APIs `/total` directly.
 - On the non-leader (passive) instance: any request returns `503 Service Unavailable` with an
-  empty body, rather than being proxied — see [DESIGN.md](DESIGN.md) for why.
+  empty body, rather than being proxied.
 
 ## Health checks
 

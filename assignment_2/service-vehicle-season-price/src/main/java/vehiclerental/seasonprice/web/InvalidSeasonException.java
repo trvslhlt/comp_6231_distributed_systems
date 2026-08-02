@@ -2,6 +2,9 @@ package vehiclerental.seasonprice.web;
 
 import java.util.Set;
 
+/**
+ * Exception thrown when an invalid season is provided.
+ */
 public class InvalidSeasonException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

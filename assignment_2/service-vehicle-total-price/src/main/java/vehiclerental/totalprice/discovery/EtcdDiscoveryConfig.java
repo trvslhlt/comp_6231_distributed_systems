@@ -16,10 +16,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 /**
- * Active only when vehicle-rental.etcd.enabled=true. Registers this instance in etcd under
+ * Registers this instance in etcd under
  * service-vehicle-total-price, and wires Spring Cloud LoadBalancer to resolve
- * "http://service-vehicle-season-price" against instances of Service B discovered via etcd
- * (see {@link SeasonPriceLoadBalancerConfiguration}) instead of a fixed URL.
+ * "http://service-vehicle-season-price" against instances of Service B discovered via etcd.
+ * Active only when vehicle-rental.etcd.enabled=true. 
  */
 @Configuration
 @ConditionalOnProperty(name = "vehicle-rental.etcd.enabled", havingValue = "true")

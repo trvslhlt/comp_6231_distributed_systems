@@ -5,10 +5,10 @@ import org.springframework.cloud.loadbalancer.annotation.LoadBalancerClient;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Registers the "service-vehicle-total-price" load-balanced client so Gateway routes can use
- * uri("lb://service-vehicle-total-price"). The shared etcd {@code Client} bean this depends on
- * is defined once, in {@link vehiclerental.loadbalancer.election.EtcdElectionConfig}, and
- * resolved here from the parent application context.
+ * Configures Spring Cloud LoadBalancer to resolve "http://service-vehicle-total-price"
+ * against instances of total price API discovered via etcd.
+ * Active only when vehicle-rental.etcd.enabled=true.
+ * Body is empty — this class exists only to carry the annotations below.
  */
 @Configuration
 @ConditionalOnProperty(name = "vehicle-rental.etcd.enabled", havingValue = "true")

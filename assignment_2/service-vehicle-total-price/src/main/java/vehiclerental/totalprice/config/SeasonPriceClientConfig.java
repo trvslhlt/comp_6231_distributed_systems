@@ -9,10 +9,8 @@ import org.springframework.web.client.RestClient;
 import java.util.Objects;
 
 /**
- * Phase 1 wiring: talk to a single, fixed Service B instance. Active only when
- * vehicle-rental.etcd.enabled=false (the default). When etcd is enabled,
- * {@link vehiclerental.totalprice.discovery.EtcdDiscoveryConfig} supplies the RestClient bean
- * instead, backed by Spring Cloud LoadBalancer over instances discovered via etcd.
+ * Configures a RestClient for the season price service using a fixed base URL.
+ * Active only when vehicle-rental.etcd.enabled=false or not set.
  */
 @Configuration
 public class SeasonPriceClientConfig {

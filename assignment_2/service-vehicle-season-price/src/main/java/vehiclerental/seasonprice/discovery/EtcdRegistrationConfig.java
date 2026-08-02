@@ -12,9 +12,10 @@ import vehiclerental.seasonprice.config.InstanceIdentity;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-/** Active only when vehicle-rental.etcd.enabled=true. Registers this instance in etcd so
- * Service A can discover it. Service B never calls another service, so it has no discovery
- * side (contrast with Service A's {@code discovery} package). */
+/** 
+ * Registers this instance in etcd for discovery.
+ * Active only when {@code vehicle-rental.etcd.enabled=true}. 
+ */
 @Configuration
 @ConditionalOnProperty(name = "vehicle-rental.etcd.enabled", havingValue = "true")
 public class EtcdRegistrationConfig {
@@ -27,9 +28,15 @@ public class EtcdRegistrationConfig {
     }
 
     @Bean(initMethod = "start", destroyMethod = "close")
-    public EtcdServiceRegistry selfRegistration(Client etcdClient, InstanceIdentity identity,
-                                                 @Value("${vehicle-rental.etcd.lease-ttl-seconds:10}") long ttlSeconds) throws UnknownHostException {
-        ServiceInstance self = new ServiceInstance(identity.getInstanceId(), resolveHost(), identity.getPort());
+    public EtcdServiceRegistry selfRegistration(
+        Client etcdClient, 
+        InstanceIdentity identity,
+        @Value("${vehicle-rental.etcd.lease-ttl-seconds:10}") long ttlSeconds
+    ) throws UnknownHostException {
+        ServiceInstance self = new ServiceInstance(
+            identity.getInstanceId(), 
+            resolveHost(), 
+            identity.getPort());
         return new EtcdServiceRegistry(etcdClient, SERVICE_ID, self, ttlSeconds);
     }
 
