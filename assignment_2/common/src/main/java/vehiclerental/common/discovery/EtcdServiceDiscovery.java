@@ -16,9 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static vehiclerental.common.EtcdKeys.servicePrefix;
 
@@ -34,7 +32,6 @@ public class EtcdServiceDiscovery implements AutoCloseable {
     private final ObjectMapper mapper = new ObjectMapper();
     private final String serviceName;
     private final Map<String, ServiceInstance> instances = new ConcurrentHashMap<>();
-    private final AtomicInteger roundRobinCounter = new AtomicInteger();
 
     private Watch.Watcher watcher;
 
@@ -104,16 +101,6 @@ public class EtcdServiceDiscovery implements AutoCloseable {
     /** Returns a snapshot of the current instances. */
     public List<ServiceInstance> currentInstances() {
         return new ArrayList<>(instances.values());
-    }
-
-    /** Picks the next instance in round-robin order; empty if none are currently registered. */
-    public Optional<ServiceInstance> next() {
-        List<ServiceInstance> snapshot = currentInstances();
-        if (snapshot.isEmpty()) {
-            return Optional.empty();
-        }
-        int index = Math.floorMod(roundRobinCounter.getAndIncrement(), snapshot.size());
-        return Optional.of(snapshot.get(index));
     }
 
     /** Closes the watcher and stops watching for changes. */

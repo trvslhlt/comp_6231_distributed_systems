@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Load balancer app enrtypoint.
+ * Load balancer app entrypoint.
  */
 @SpringBootApplication
 public class LoadBalancerApplication {

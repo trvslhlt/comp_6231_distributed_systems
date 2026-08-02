@@ -6,10 +6,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import vehiclerental.common.discovery.EtcdServiceRegistry;
+import vehiclerental.common.discovery.HostResolver;
 import vehiclerental.common.discovery.ServiceInstance;
-import vehiclerental.seasonprice.config.InstanceIdentity;
+import vehiclerental.common.config.InstanceIdentity;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 /** 
@@ -34,14 +34,9 @@ public class EtcdRegistrationConfig {
         @Value("${vehicle-rental.etcd.lease-ttl-seconds:10}") long ttlSeconds
     ) throws UnknownHostException {
         ServiceInstance self = new ServiceInstance(
-            identity.getInstanceId(), 
-            resolveHost(), 
+            identity.getInstanceId(),
+            HostResolver.resolveHost(),
             identity.getPort());
         return new EtcdServiceRegistry(etcdClient, SERVICE_ID, self, ttlSeconds);
-    }
-
-    static String resolveHost() throws UnknownHostException {
-        String override = System.getenv("INSTANCE_HOST");
-        return override != null ? override : InetAddress.getLocalHost().getHostAddress();
     }
 }

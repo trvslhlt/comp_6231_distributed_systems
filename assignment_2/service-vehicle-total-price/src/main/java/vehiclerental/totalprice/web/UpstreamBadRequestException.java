@@ -7,7 +7,7 @@ public class UpstreamBadRequestException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
-    public UpstreamBadRequestException(String message) {
-        super(message);
+    public UpstreamBadRequestException(String vehicleType, String season) {
+        super("Invalid vehicleType='%s' or season='%s'".formatted(vehicleType, season));
     }
 }

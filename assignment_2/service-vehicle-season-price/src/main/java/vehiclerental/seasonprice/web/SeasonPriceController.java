@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vehiclerental.common.dto.SeasonPriceResponse;
-import vehiclerental.seasonprice.config.InstanceIdentity;
+import vehiclerental.common.config.InstanceIdentity;
 import vehiclerental.seasonprice.domain.PriceEntity;
 import vehiclerental.seasonprice.domain.PriceRepository;
 

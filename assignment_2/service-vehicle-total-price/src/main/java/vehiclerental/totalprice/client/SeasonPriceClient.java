@@ -31,7 +31,7 @@ public class SeasonPriceClient {
         } catch (HttpClientErrorException.NotFound e) {
             throw new UpstreamNotFoundException(vehicleType, season);
         } catch (HttpClientErrorException.BadRequest e) {
-            throw new UpstreamBadRequestException(e.getResponseBodyAsString());
+            throw new UpstreamBadRequestException(vehicleType, season);
         }
     }
 }

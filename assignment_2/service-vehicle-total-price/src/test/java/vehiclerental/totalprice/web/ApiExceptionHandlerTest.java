@@ -1,11 +1,14 @@
 package vehiclerental.totalprice.web;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import vehiclerental.common.dto.ErrorResponse;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,11 +41,11 @@ class ApiExceptionHandlerTest {
     @Test
     void upstreamBadRequestAlsoMapsTo400() {
         ResponseEntity<ErrorResponse> response =
-                handler.handleBadRequest(new UpstreamBadRequestException("Invalid season"));
+                handler.handleBadRequest(new UpstreamBadRequestException("SUV", "monsoon"));
         ErrorResponse body = Objects.requireNonNull(response.getBody());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(body.message()).isEqualTo("Invalid season");
+        assertThat(body.message()).contains("SUV").contains("monsoon");
     }
 
     @Test
@@ -53,5 +56,20 @@ class ApiExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(body.error()).isEqualTo("bad_request");
+    }
+
+    @Test
+    void nonNumericDaysMapsTo400WithoutLeakingUpstreamDetails() throws NoSuchMethodException {
+        Method getTotal = TotalPriceController.class.getMethod("getTotal", String.class, String.class, int.class);
+        MethodParameter daysParam = new MethodParameter(getTotal, 2);
+        MethodArgumentTypeMismatchException e = new MethodArgumentTypeMismatchException(
+                "abc", int.class, "days", daysParam, new NumberFormatException("For input string: \"abc\""));
+
+        ResponseEntity<ErrorResponse> response = handler.handleTypeMismatch(e);
+        ErrorResponse body = Objects.requireNonNull(response.getBody());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(body.error()).isEqualTo("bad_request");
+        assertThat(body.message()).contains("days").contains("abc");
     }
 }

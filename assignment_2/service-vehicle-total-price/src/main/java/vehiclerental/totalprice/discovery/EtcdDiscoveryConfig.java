@@ -9,10 +9,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 import vehiclerental.common.discovery.EtcdServiceRegistry;
+import vehiclerental.common.discovery.HostResolver;
 import vehiclerental.common.discovery.ServiceInstance;
-import vehiclerental.totalprice.config.InstanceIdentity;
+import vehiclerental.common.config.InstanceIdentity;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 /**
@@ -35,9 +35,16 @@ public class EtcdDiscoveryConfig {
     }
 
     @Bean(initMethod = "start", destroyMethod = "close")
-    public EtcdServiceRegistry selfRegistration(Client etcdClient, InstanceIdentity identity,
-                                                 @Value("${vehicle-rental.etcd.lease-ttl-seconds:10}") long ttlSeconds) throws UnknownHostException {
-        ServiceInstance self = new ServiceInstance(identity.getInstanceId(), resolveHost(), identity.getPort());
+    public EtcdServiceRegistry selfRegistration(
+        Client etcdClient, 
+        InstanceIdentity identity,
+        @Value("${vehicle-rental.etcd.lease-ttl-seconds:10}") long ttlSeconds
+    ) throws UnknownHostException {
+        ServiceInstance self = new ServiceInstance(
+            identity.getInstanceId(), 
+            HostResolver.resolveHost(), 
+            identity.getPort()
+        );
         return new EtcdServiceRegistry(etcdClient, THIS_SERVICE_ID, self, ttlSeconds);
     }
 
@@ -50,10 +57,5 @@ public class EtcdDiscoveryConfig {
     @Bean
     public RestClient seasonPriceRestClient(RestClient.Builder loadBalancedRestClientBuilder) {
         return loadBalancedRestClientBuilder.baseUrl("http://" + SEASON_PRICE_SERVICE_ID).build();
-    }
-
-    static String resolveHost() throws UnknownHostException {
-        String override = System.getenv("INSTANCE_HOST");
-        return override != null ? override : InetAddress.getLocalHost().getHostAddress();
     }
 }

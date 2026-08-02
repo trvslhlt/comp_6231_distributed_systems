@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import vehiclerental.common.dto.SeasonPriceResponse;
 import vehiclerental.common.dto.TotalPriceResponse;
 import vehiclerental.totalprice.client.SeasonPriceClient;
-import vehiclerental.totalprice.config.InstanceIdentity;
+import vehiclerental.common.config.InstanceIdentity;
 
 import java.math.BigDecimal;
 

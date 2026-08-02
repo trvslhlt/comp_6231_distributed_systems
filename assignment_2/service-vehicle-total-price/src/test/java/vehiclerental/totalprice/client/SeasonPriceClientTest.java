@@ -71,6 +71,7 @@ class SeasonPriceClientTest {
 
         assertThatThrownBy(() -> client.getPrice("SUV", "monsoon"))
                 .isInstanceOf(UpstreamBadRequestException.class)
-                .hasMessageContaining("Invalid season");
+                .hasMessageContaining("SUV")
+                .hasMessageContaining("monsoon");
     }
 }

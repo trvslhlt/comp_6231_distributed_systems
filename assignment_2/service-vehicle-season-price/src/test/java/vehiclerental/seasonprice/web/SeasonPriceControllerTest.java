@@ -5,7 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import vehiclerental.common.dto.SeasonPriceResponse;
-import vehiclerental.seasonprice.config.InstanceIdentity;
+import vehiclerental.common.config.InstanceIdentity;
 import vehiclerental.seasonprice.domain.PriceEntity;
 import vehiclerental.seasonprice.domain.PriceRepository;
 

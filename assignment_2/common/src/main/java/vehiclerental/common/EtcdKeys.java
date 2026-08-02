@@ -1,6 +1,6 @@
 package vehiclerental.common;
 
-/** Definition of etcd keys used in the system.. */
+/** Definition of etcd keys used in the system. */
 public final class EtcdKeys {
 
     private EtcdKeys() {}

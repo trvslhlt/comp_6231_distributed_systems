@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import vehiclerental.common.election.EtcdLeaderElection;
 import vehiclerental.common.k8s.PodRoleLabeler;
-import vehiclerental.loadbalancer.config.InstanceIdentity;
+import vehiclerental.common.config.InstanceIdentity;
 
 /**
  * Updates state when winning or losing a leadership election.
