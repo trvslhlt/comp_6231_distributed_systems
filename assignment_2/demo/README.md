@@ -5,8 +5,8 @@ directly while building the system, not just written down.
 
 ## docker-compose
 
-Bring the stack up first ([../docs/SETUP.md](../docs/SETUP.md), Option 2), then from
-`demo/compose/`:
+Bring the stack up first ([../docs/SETUP.md](../docs/SETUP.md), "docker-compose" section), then
+from `demo/compose/`:
 
 | Script | Demonstrates |
 |---|---|
@@ -26,7 +26,7 @@ cd demo/compose
 
 ## Kubernetes (kind)
 
-The same scenarios are more convincing on a real cluster — in particular, scenario 3's `role`
+The same scenarios are more convincing on a real cluster — in particular, scenario 4's `role`
 label flip becomes something you can watch happen, and the client-facing `Service`'s endpoint
 list re-routes on its own instead of you checking two ports by hand. From `demo/kind/`:
 

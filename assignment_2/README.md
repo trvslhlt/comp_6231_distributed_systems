@@ -2,7 +2,7 @@
 
 Implements the two required microservices: **Vehicle Season Price** and **Vehicle Total Price**. 
 
-Beyond the base requirement, this project explores distributed-systems course themes as "additional features". All architectural decisions are my own, while **not required** features were coded with the help of Claude:
+Beyond the base requirement, this project explores distributed-systems course themes as "additional features". All architectural decisions are my own, while **optional** features were coded with the help of Claude:
 - Each service runs as N instances
 - Postgres is set up with streaming replication for fault tolerance
 - The application is fronted by an active-passive Layer 7 load balancer

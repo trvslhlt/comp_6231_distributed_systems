@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Remove a Service B instance 
-# — service discovery
-# - fault detection
+# Scenario 2 (kind): remove a Service B instance — service discovery + fault detection.
+# NOTE: `kubectl scale` sends a graceful termination (SIGTERM, respects terminationGracePeriodSeconds),
+# so this is closer to a clean deregistration than a real crash — Kubernetes has no direct equivalent
+# of `docker compose kill`'s SIGKILL short of hard-deleting the node itself. The lease-expiry path
+# (etcd key surviving until the lease naturally times out) is better observed via
+# ../compose/03-kill-service-b.sh, which does simulate a true crash.
 set -euo pipefail
 
 echo "--- current Service B pods (instances) ---"
