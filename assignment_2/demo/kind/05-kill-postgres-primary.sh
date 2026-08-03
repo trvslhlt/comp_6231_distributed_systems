@@ -34,7 +34,7 @@ echo "--- Patroni's history confirms a real promotion ---"
 # match succeed immediately — before the actually-new entry for this promotion is written.
 for i in 1 2 3 4 5; do
   LATEST_NODE=$(kubectl -n vehicle-rental exec "$NEW_PRIMARY" -- python3 -c \
-    "import urllib.request, json; h=json.loads(urllib.request.urlopen('http://localhost:8008/history').read()); print(h[-1][4])")
+    "import urllib.request, json; h=json.loads(urllib.request.urlopen('http://localhost:8008/history').read()); print(h[-1][4] if h else '')")
   [ "$LATEST_NODE" = "$NEW_PRIMARY" ] && break
   sleep 1
 done
