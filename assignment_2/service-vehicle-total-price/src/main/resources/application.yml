@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: service-vehicle-total-price
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+vehicle-rental:
+  instance-id: ${INSTANCE_ID:${random.uuid}}
+  season-price-service:
+    # Phase 1: talk to a single, fixed Service B instance directly. Superseded by etcd-backed
+    # Spring Cloud LoadBalancer discovery once ETCD_ENABLED is turned on.
+    base-url: ${SEASON_PRICE_SERVICE_URL:http://localhost:8081}
+  etcd:
+    enabled: ${ETCD_ENABLED:false}
+    endpoints: ${ETCD_ENDPOINTS:http://localhost:2379}

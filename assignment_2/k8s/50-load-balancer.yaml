@@ -1,0 +1,103 @@
+# Active-passive load balancer. Both replicas run; only the etcd election winner labels
+# itself role=active (see PodRoleLabeler / EtcdElectionConfig), and the client-facing Service
+# below selects strictly on role=active — so exactly one pod ever receives real client
+# traffic, and failover is a label flip driven by the etcd lease, not a Kubernetes feature.
+# Note the Deployment's own pod selector only matches app=load-balancer (not role), since role
+# changes at runtime and a Deployment's selector must stay stable across its own pods.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: load-balancer
+  namespace: vehicle-rental
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: load-balancer-pod-labeler
+  namespace: vehicle-rental
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: load-balancer-pod-labeler
+  namespace: vehicle-rental
+subjects:
+  - kind: ServiceAccount
+    name: load-balancer
+    namespace: vehicle-rental
+roleRef:
+  kind: Role
+  name: load-balancer-pod-labeler
+  apiGroup: rbac.authorization.k8s.io
+---
+# Client entry point. type: LoadBalancer requests a cloud provider's L4 load balancer / external
+# IP; on a local cluster (kind/minikube) without one available, use `kubectl port-forward` or
+# switch this to NodePort — either way only the active pod is ever selected.
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-balancer
+  namespace: vehicle-rental
+spec:
+  type: LoadBalancer
+  selector:
+    app: load-balancer
+    role: active
+  ports:
+    - port: 80
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-balancer
+  namespace: vehicle-rental
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: load-balancer
+  template:
+    metadata:
+      labels:
+        app: load-balancer
+        role: passive
+    spec:
+      serviceAccountName: load-balancer
+      containers:
+        - name: load-balancer
+          image: vehicle-rental/load-balancer:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+          env:
+            - name: SERVER_PORT
+              value: "8090"
+            - name: INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ETCD_ENABLED
+              value: "true"
+            - name: ETCD_ENDPOINTS
+              value: "http://etcd-0.etcd:2379,http://etcd-1.etcd:2379,http://etcd-2.etcd:2379"
+            - name: ETCD_LEASE_TTL_SECONDS
+              value: "10"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 5

@@ -1,0 +1,37 @@
+# Static structural config, shared by every node. Everything that varies per-instance or
+# per-environment (scope, name, addresses, etcd hosts, credentials) is supplied via PATRONI_*
+# env vars instead — Patroni reads both and merges them, and this keeps per-pod identity driven
+# from the Kubernetes Downward API, matching how every other service in this project is
+# configured (env vars, not templated config files).
+bootstrap:
+  dcs:
+    ttl: 10
+    loop_wait: 5
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+  post_bootstrap: /scripts/post-bootstrap.sh
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  pg_hba:
+    - host replication replicator 0.0.0.0/0 md5
+    - host all all 0.0.0.0/0 md5
+
+postgresql:
+  data_dir: /var/lib/postgresql/data/patroni
+  parameters:
+    unix_socket_directories: "/var/run/postgresql"
+  callbacks:
+    on_start: /scripts/on_role_change.py
+    on_role_change: /scripts/on_role_change.py
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

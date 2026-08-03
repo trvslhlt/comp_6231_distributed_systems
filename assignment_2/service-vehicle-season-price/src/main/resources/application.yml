@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: service-vehicle-season-price
+  datasource:
+    # Runtime query traffic (all reads): points at a Postgres read replica in multi-instance
+    # setups, or the lone instance in local single-node dev.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:vehicle_rental}?stringtype=unspecified
+    username: ${DB_USER:vehicle_rental}
+    password: ${DB_PASSWORD:vehicle_rental}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    # Schema migrations must run against the writable primary, never a read replica — this is
+    # deliberately a separate connection from spring.datasource above. Defaults to DB_HOST for
+    # single-node local dev where there's only one Postgres instance anyway.
+    url: jdbc:postgresql://${FLYWAY_DB_HOST:${DB_HOST:localhost}}:${FLYWAY_DB_PORT:${DB_PORT:5432}}/${DB_NAME:vehicle_rental}?stringtype=unspecified
+    user: ${FLYWAY_DB_USER:${DB_USER:vehicle_rental}}
+    password: ${FLYWAY_DB_PASSWORD:${DB_PASSWORD:vehicle_rental}}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+vehicle-rental:
+  instance-id: ${INSTANCE_ID:${random.uuid}}
+  etcd:
+    enabled: ${ETCD_ENABLED:false}
+    endpoints: ${ETCD_ENDPOINTS:http://localhost:2379}
